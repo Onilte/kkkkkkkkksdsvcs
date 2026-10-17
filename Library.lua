@@ -99,24 +99,6 @@ Blur.Parent = Lighting
 		Orion.Parent = game.CoreGui
 	end
 
--- Fundo gradiente para o UI
-	local Background = Instance.new("Frame")
-	Background.Name = "BackgroundGradient"
-	Background.Size = UDim2.new(1, 0, 1, 0)
-	Background.BackgroundColor3 = Color3.fromRGB(10, 15, 25)
-	Background.BorderSizePixel = 0
-	Background.Parent = Orion
-	Background.ZIndex = 0
-
-	local UIGradient = Instance.new("UIGradient")
-	UIGradient.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 20, 35)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(25, 35, 60)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 15, 25))
-	}
-	UIGradient.Rotation = 45
-	UIGradient.Parent = Background
-
 	function OrionLib:IsRunning()
 		return Orion.Parent == game.CoreGui
 	end
