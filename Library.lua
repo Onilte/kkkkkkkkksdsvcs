@@ -690,7 +690,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					}), "Divider"),
 					CloseBtn,
 					MinimizeBtn
-				}), "Elements"),
+				}), "Main"),
 				AddThemeObject(SetChildren(SetProps(MakeElement("TFrame", Color3.fromRGB(18, 18, 18), 0, 8), {
 					Size = UDim2.new(1, 0, 1, 0),
 					Position = UDim2.new(0, 0, 0, 20),
