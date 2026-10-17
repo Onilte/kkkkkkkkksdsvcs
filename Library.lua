@@ -676,21 +676,21 @@ function OrionLib:MakeWindow(WindowConfig)
 				Active = true,
 			}), {
 				WindowTopBarLine,
-				AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(18, 18, 18), 0, WindowConfig.NewUI and 12 or 8), {
+				SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(18, 18, 18), 0, WindowConfig.NewUI and 12 or 8), {
 					Size = UDim2.new(0, 70, 0, 30),
 					Position = UDim2.new(1, -90, 0, 10),
 					BackgroundTransparency = 1,
 					Name = "ButtonsFrame",
 				}), {
 					AddThemeObject(MakeElement("Stroke"), "Stroke"),
-					AddThemeObject(SetProps(MakeElement("Frame"), {
+					SetProps(MakeElement("Frame"), {
 						Size = UDim2.new(0, 1, 1, 0),
 						Position = UDim2.new(0.5, 0, 0, 0),
-						BackgroundTransparency = 0.5,
-					}), "Divider"),
+						BackgroundTransparency = 1,
+					}),
 					CloseBtn,
 					MinimizeBtn
-				}), "Main"),
+				}),
 				AddThemeObject(SetChildren(SetProps(MakeElement("TFrame", Color3.fromRGB(18, 18, 18), 0, 8), {
 					Size = UDim2.new(1, 0, 1, 0),
 					Position = UDim2.new(0, 0, 0, 20),
@@ -1252,7 +1252,9 @@ function OrionLib:MakeWindow(WindowConfig)
 
 		function TabFunction:SetStrokeColor(Color)
 			MainWindow.TopBar.ButtonsFrame.Stroke.Color = Color
-			MainWindow.TopBar.ButtonsFrame.Frame.BackgroundColor3 = Color
+			if MainWindow.TopBar.ButtonsFrame:FindFirstChild("Frame") then
+				MainWindow.TopBar.ButtonsFrame.Frame.BackgroundColor3 = Color
+			end
 			if MainWindow.TopBar:FindFirstChild("SearchBar") then
 				MainWindow.TopBar.SearchBar.Stroke.Color = Color
 			end
@@ -1263,7 +1265,9 @@ function OrionLib:MakeWindow(WindowConfig)
 
 		function TabFunction:SetStrokeTransparency(Transparency)
 			MainWindow.TopBar.ButtonsFrame.Stroke.Transparency = Transparency
-			MainWindow.TopBar.ButtonsFrame.Frame.BackgroundTransparency = Transparency
+			if MainWindow.TopBar.ButtonsFrame:FindFirstChild("Frame") then
+				MainWindow.TopBar.ButtonsFrame.Frame.BackgroundTransparency = Transparency
+			end
 			if MainWindow.TopBar:FindFirstChild("SearchBar") then
 				MainWindow.TopBar.SearchBar.Stroke.Transparency = Transparency
 			end
