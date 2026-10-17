@@ -1,7 +1,5 @@
 -- language: Lua, file: BetterOrion.lua, target: Roblox executor (Synapse/Script-Ware/Krnl/Fluxus/Solara)
--- *cinza-escuro (18,18,18) fundo, stroke branco-escuro (200,200,200), logo canto direito + AddDivider*
--- *PATCH BIND: AddBind agora mostra a tecla e dispara desde o default*
--- *TEMA: Glassmorphism Nexus.ai - Preto, Azul Ciano, Blur*
+-- *Tema: Glassmorphism (Nexus.ai style) - Azul Ciano, Fundo Escuro Gradiente, Blur*
 
 while not game:IsLoaded() do task.wait() end
 for _, UI in ipairs(game.CoreGui:GetChildren()) do
@@ -29,28 +27,28 @@ local OrionLib = {
     Themes = {
     Default = {
         Main = {
-            Color = Color3.fromRGB(20, 25, 35),
-            Transparency = 0.3
+            Color = Color3.fromRGB(20, 25, 35), -- Fundo escuro azulado
+            Transparency = 0.3 -- Mais transparente para o efeito de vidro
         },
         Stroke = {
-            Color = Color3.fromRGB(0, 210, 255),
+            Color = Color3.fromRGB(0, 210, 255), -- Azul ciano brilhante
             Transparency = 0.2
         },
         Divider = {
-            Color = Color3.fromRGB(50, 70, 90),
+            Color = Color3.fromRGB(50, 70, 90), -- Divisor sutil
             Transparency = 0.6
         },
         Text = {
-            Color = Color3.fromRGB(255, 255, 255),
+            Color = Color3.fromRGB(255, 255, 255), -- Branco puro
             Transparency = 0
         },
         TextDark = {
-            Color = Color3.fromRGB(170, 190, 210),
+            Color = Color3.fromRGB(170, 190, 210), -- Cinza azulado claro
             Transparency = 0
         },
         Elements = {
-            Color = Color3.fromRGB(30, 40, 55),
-            Transparency = 0.4
+            Color = Color3.fromRGB(30, 40, 55), -- Fundo dos botões um pouco mais claro
+            Transparency = 0.4 -- Efeito de vidro
         }
     },
     MyCustomTheme = {
@@ -81,7 +79,7 @@ local OrionLib = {
 	Window = nil,
 }
 
--- Blur para o efeito de vidro
+-- Aplicar Blur no fundo do jogo para dar o efeito de vidro
 local Blur = Lighting:FindFirstChild("OrionBlur") or Instance.new("BlurEffect")
 Blur.Name = "OrionBlur"
 Blur.Size = 20
@@ -101,7 +99,7 @@ Blur.Parent = Lighting
 		Orion.Parent = game.CoreGui
 	end
 
--- Fundo gradiente
+-- Fundo gradiente para o UI
 	local Background = Instance.new("Frame")
 	Background.Name = "BackgroundGradient"
 	Background.Size = UDim2.new(1, 0, 1, 0)
@@ -2053,7 +2051,6 @@ function OrionLib:MakeWindow(WindowConfig)
 								Font = Enum.Font.GothamBold,
 								TextXAlignment = Enum.TextXAlignment.Center,
 								Name = "Indicator",
-								TextTransparency = 0.5
 							}), "Text"),
 							AddThemeObject(MakeElement("Stroke"), "Stroke")
 						}), "Elements")
@@ -2065,10 +2062,10 @@ function OrionLib:MakeWindow(WindowConfig)
 							Name = "Click"
 						})
 
-						local DropdownList = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(25, 30, 40), 0, 6), {
+						local DropdownList = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(20, 20, 20), 0, 6), {
 							Size = UDim2.new(1, 0, 0, 0),
 							Position = UDim2.new(0, 0, 1, 5),
-							BackgroundTransparency = 0.3,
+							BackgroundTransparency = 0.1,
 							Parent = DropdownFrame,
 							Name = "List",
 							Visible = false,
@@ -2100,7 +2097,7 @@ function OrionLib:MakeWindow(WindowConfig)
 						for i, option in ipairs(DropdownConfig.Options) do
 							local OptionFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
 								Size = UDim2.new(1, 0, 0, 24),
-								BackgroundTransparency = 0.8,
+								BackgroundTransparency = 0.6,
 								Parent = DropdownList,
 								Name = "Option_" .. i,
 							}), {
@@ -2126,10 +2123,10 @@ function OrionLib:MakeWindow(WindowConfig)
 							end)
 
 							AddConnection(OptionButton.MouseEnter, function()
-								TweenService:Create(OptionFrame, TweenInfo.new(0.15), {BackgroundTransparency = 0.5}):Play()
+								TweenService:Create(OptionFrame, TweenInfo.new(0.15), {BackgroundTransparency = 0.3}):Play()
 							end)
 							AddConnection(OptionButton.MouseLeave, function()
-								TweenService:Create(OptionFrame, TweenInfo.new(0.15), {BackgroundTransparency = 0.8}):Play()
+								TweenService:Create(OptionFrame, TweenInfo.new(0.15), {BackgroundTransparency = 0.6}):Play()
 							end)
 						end
 
@@ -2155,7 +2152,7 @@ function OrionLib:MakeWindow(WindowConfig)
 							for i, option in ipairs(Options) do
 								local OptionFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
 									Size = UDim2.new(1, 0, 0, 24),
-									BackgroundTransparency = 0.8,
+									BackgroundTransparency = 0.6,
 									Parent = DropdownList,
 									Name = "Option_" .. i,
 								}), {
@@ -2175,8 +2172,8 @@ function OrionLib:MakeWindow(WindowConfig)
 									Name = "Click"
 								})
 								AddConnection(OptionButton.MouseButton1Click, function() SelectOption(option) end)
-								AddConnection(OptionButton.MouseEnter, function() TweenService:Create(OptionFrame, TweenInfo.new(0.15), {BackgroundTransparency = 0.5}):Play() end)
-								AddConnection(OptionButton.MouseLeave, function() TweenService:Create(OptionFrame, TweenInfo.new(0.15), {BackgroundTransparency = 0.8}):Play() end)
+								AddConnection(OptionButton.MouseEnter, function() TweenService:Create(OptionFrame, TweenInfo.new(0.15), {BackgroundTransparency = 0.3}):Play() end)
+								AddConnection(OptionButton.MouseLeave, function() TweenService:Create(OptionFrame, TweenInfo.new(0.15), {BackgroundTransparency = 0.6}):Play() end)
 							end
 							if KeepOldValue then
 								for _, option in ipairs(Options) do
@@ -2637,4 +2634,5 @@ function OrionLib:MakeWindow(WindowConfig)
 		Orion:Destroy()
 	end
 
+-- Return
 return OrionLib
