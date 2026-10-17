@@ -1,6 +1,6 @@
 -- language: Lua, file: BetterOrion.lua, target: Roblox executor (Synapse/Script-Ware/Krnl/Fluxus/Solara)
 -- *Tema: Preto (18,18,18) e Azul (0, 162, 255)*
--- *Interface reescrita para corresponder à referência visual*
+-- *Interface completa com todos os elementos originais mantidos*
 
 while not game:IsLoaded() do task.wait() end
 for _, UI in ipairs(game.CoreGui:GetChildren()) do
@@ -1734,8 +1734,7 @@ function OrionLib:MakeWindow(WindowConfig)
 						ParagraphFrame.Content.Text = Content
 
 						local ParagraphFunction = {}
-						function ParagraphFunction:Set(ToChange) ParagraphFrame.
-                        						function ParagraphFunction:Set(ToChange) ParagraphFrame.Content.Text = ToChange end
+						function ParagraphFunction:Set(ToChange) ParagraphFrame.Content.Text = ToChange end
 						function ParagraphFunction:SetTitle(ToChange) ParagraphFrame.Title.Text = ToChange end
 						function ParagraphFunction:SetColor(Color) ParagraphFrame.BackgroundColor3 = Color end
 						function ParagraphFunction:SetStrokeColor(Color) ParagraphFrame.Stroke.Color = Color end
@@ -2386,9 +2385,6 @@ function OrionLib:MakeWindow(WindowConfig)
 						end
 
 						AddConnection(ColorpickerButton.MouseButton1Click, function()
-							local Success, Result = pcall(function()
-								return game:GetService("CoreGui"):FindFirstChild("RobloxPromptGui"):FindFirstChild("promptOverlay")
-							end)
 							-- Fallback: simple color picker via text input
 							local Prompt = Instance.new("TextBox")
 							Prompt.Parent = Orion
