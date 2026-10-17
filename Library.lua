@@ -185,20 +185,19 @@ end
 	end
 
 		local function AddThemeObject(Object, Type)
+		if not Type then return Object end -- Se não tem tipo, ignora o tema e evita o crash
 		if not OrionLib.ThemeObjects[Type] then OrionLib.ThemeObjects[Type] = {} end
 		table.insert(OrionLib.ThemeObjects[Type], Object)
 		
-		pcall(function()
-			local ColorProp = ReturnProperty(Object, "Color")
-			if ColorProp then
-				Object[ColorProp] = OrionLib.Themes[OrionLib.SelectedTheme][Type]["Color"]
-			end
-			
-			local TranspProp = ReturnProperty(Object, "Transparency")
-			if TranspProp then
-				Object[TranspProp] = OrionLib.Themes[OrionLib.SelectedTheme][Type]["Transparency"]
-			end
-		end)
+		local ColorProp = ReturnProperty(Object, "Color")
+		local TranspProp = ReturnProperty(Object, "Transparency")
+		
+		if ColorProp and OrionLib.Themes[OrionLib.SelectedTheme][Type] then
+			Object[ColorProp] = OrionLib.Themes[OrionLib.SelectedTheme][Type]["Color"]
+		end
+		if TranspProp and OrionLib.Themes[OrionLib.SelectedTheme][Type] then
+			Object[TranspProp] = OrionLib.Themes[OrionLib.SelectedTheme][Type]["Transparency"]
+		end
 		
 		return Object
 	end
