@@ -1,9 +1,9 @@
 --[[
-    NoctraLib v1.0
+    NoctraLib v1.1
     Criado para NoBreath Hub
-    Estilo: Dark UI com bordas ciano (Stroke 1.5), fundo preto (18,18,18), fonte Roboto.
-    Inclui: SaveManager (persistência nativa), ThemeManager (temas) e NoctraLib (UI).
-    Ícones via Lucide.
+    Estilo: Dark UI (fundo 18,18,18), Stroke ciano (0,150,255) 1.5px, Fonte Roboto.
+    Inclui: SaveManager, ThemeManager, Iniciador (Splash Screen) e UI completa.
+    Ícones via Lucide (com fallback de segurança).
 ]]
 
 local UserInputService = game:GetService("UserInputService")
@@ -40,9 +40,17 @@ local NoctraLib = {
     Window = nil,
 }
 
--- Icons
+-- Icons (com fallback seguro)
 local Icons = {}
-local LucideIcons = loadstring(game:HttpGet("https://raw.githubusercontent.com/Utkaky/Main/refs/heads/main/SoundHub/icons.lua"))().assets
+local LucideIcons = {}
+pcall(function()
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Utkaky/Main/refs/heads/main/SoundHub/icons.lua"))()
+    end)
+    if success and type(result) == "table" and result.assets then
+        LucideIcons = result.assets
+    end
+end)
 
 -- Core
 local Noctra = Instance.new("ScreenGui")
@@ -63,10 +71,10 @@ local function GetOrionIcon(IconName)
     if Icons[IconName] ~= nil then return Icons[IconName] else return nil end
 end
 local function GetLucideIcon(IconName)
-    if IconName ~= nil then
+    if IconName ~= nil and LucideIcons["lucide-"..IconName] ~= nil then
         return LucideIcons["lucide-"..IconName]
     else
-        return nil
+        return ""
     end
 end
 
@@ -409,7 +417,7 @@ function NoctraLib:MakeNotification(NotificationConfig)
             SetProps(MakeElement("Label", NotificationConfig.Name, 15), {
                 Size = UDim2.new(1, -30, 0, 20),
                 Position = UDim2.new(0, 30, 0, -4),
-                Font = Enum.Font.RobotoMedium,
+                Font = Enum.Font.RobotoBold,
                 TextSize = 15,
                 Name = "Title",
                 BackgroundTransparency = 1,
@@ -462,6 +470,84 @@ end
 function NoctraLib:SetNotifyingState(Config)
     NoctraLib.NotificationSettings.Enabled = Config.Enabled
     NoctraLib.NotificationSettings.Printing = Config.Printing
+end
+
+-- ==========================================
+-- INICIADOR (SPLASH SCREEN)
+-- ==========================================
+function NoctraLib:ShowIntro(Config)
+    Config = Config or {}
+    Config.ScriptName = Config.ScriptName or "NoBreath"
+    Config.Logo = Config.Logo or "ghost"
+    Config.Duration = Config.Duration or 3
+
+    local SplashGui = Create("ScreenGui", {
+        Name = "NoctraIntro",
+        Parent = CoreGui,
+        ResetOnSpawn = false,
+        DisplayOrder = 999
+    })
+
+    local SplashFrame = Create("Frame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(10, 10, 12),
+        BorderSizePixel = 0,
+        Parent = SplashGui
+    })
+
+    local LogoIcon = GetLucideIcon(Config.Logo) or ""
+    local LogoImage = Create("ImageLabel", {
+        Size = UDim2.new(0, 48, 0, 48),
+        Position = UDim2.new(0.5, -120, 0.5, -24),
+        BackgroundTransparency = 1,
+        Image = LogoIcon,
+        ImageColor3 = Color3.fromRGB(0, 150, 255),
+        ImageTransparency = 1,
+        Parent = SplashFrame
+    })
+
+    local ScriptNameLabel = Create("TextLabel", {
+        Size = UDim2.new(0, 300, 0, 48),
+        Position = UDim2.new(0.5, -60, 0.5, -24),
+        BackgroundTransparency = 1,
+        Text = Config.ScriptName,
+        TextColor3 = Color3.fromRGB(240, 240, 240),
+        Font = Enum.Font.RobotoBold,
+        TextSize = 28,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTransparency = 1,
+        Parent = SplashFrame
+    })
+
+    local LoadingBarBg = Create("Frame", {
+        Size = UDim2.new(0, 300, 0, 4),
+        Position = UDim2.new(0.5, -150, 0.5, 40),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+        BorderSizePixel = 0,
+        Parent = SplashFrame
+    }, {CreateCorner(0, 2)})
+
+    local LoadingBar = Create("Frame", {
+        Size = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(0, 150, 255),
+        BorderSizePixel = 0,
+        Parent = LoadingBarBg
+    }, {CreateCorner(0, 2)})
+
+    TweenService:Create(LogoImage, TweenInfo.new(0.4, Enum.EasingStyle.Quint), {ImageTransparency = 0}):Play()
+    TweenService:Create(ScriptNameLabel, TweenInfo.new(0.4, Enum.EasingStyle.Quint), {TextTransparency = 0}):Play()
+
+    TweenService:Create(LoadingBar, TweenInfo.new(Config.Duration - 0.4, Enum.EasingStyle.Linear), {Size = UDim2.new(1, 0, 1, 0)}):Play()
+
+    task.delay(Config.Duration, function()
+        TweenService:Create(SplashFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(LogoImage, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {ImageTransparency = 1}):Play()
+        TweenService:Create(ScriptNameLabel, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {TextTransparency = 1}):Play()
+        TweenService:Create(LoadingBarBg, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(LoadingBar, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {BackgroundTransparency = 1}):Play()
+        task.wait(0.6)
+        SplashGui:Destroy()
+    end)
 end
 
 -- ==========================================
@@ -622,7 +708,7 @@ function NoctraLib:MakeWindow(WindowConfig)
     local WindowName = AddThemeObject(SetProps(MakeElement("Label", WindowConfig.Name, 14), {
         Size = UDim2.new(1, -30, 2, 0),
         Position = UDim2.new(0, 25, 0, -45),
-        Font = Enum.Font.RobotoBlack,
+        Font = Enum.Font.RobotoBold,
         TextSize = 20,
         Name = "WindowName",
         Text = WindowConfig.Name,
@@ -631,7 +717,7 @@ function NoctraLib:MakeWindow(WindowConfig)
     local WindowSubName = AddThemeObject(SetProps(MakeElement("Label", WindowConfig.SubName, 14), {
         Size = UDim2.new(1, -WindowName.TextBounds.X - 200, 1, 0),
         Position = UDim2.new(0, WindowConfig.ShowIcon and WindowName.TextBounds.X + 60 or WindowName.TextBounds.X + 35, 0, -19),
-        Font = Enum.Font.RobotoMedium,
+        Font = Enum.Font.RobotoBold,
         TextSize = 14,
         TextWrapped = true,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -778,7 +864,7 @@ function NoctraLib:MakeWindow(WindowConfig)
             TextColor3 = Color3.fromRGB(255, 255, 255),
             PlaceholderColor3 = Color3.fromRGB(210,210,210),
             PlaceholderText = (type(WindowConfig.SearchBar) == "table" and WindowConfig.SearchBar.Default) or "Search",
-            Font = Enum.Font.RobotoMedium,
+            Font = Enum.Font.RobotoBold,
             TextWrapped = true,
             Text = '',
             TextXAlignment = Enum.TextXAlignment.Center,
@@ -832,7 +918,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                             local Tab = TabHolder:FindFirstChild(Container:GetAttribute("tab"))
                             TweenService:Create(Tab.Ico, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = 0}):Play()
                             TweenService:Create(Tab.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-                            Tab.Title.Font = Enum.Font.RobotoBlack
+                            Tab.Title.Font = Enum.Font.RobotoBold
                         end)
                     else
                         Container.Visible = false
@@ -840,7 +926,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                             local Tab = TabHolder:FindFirstChild(Container:GetAttribute("tab"))
                             TweenService:Create(Tab.Ico, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = 0.4}):Play()
                             TweenService:Create(Tab.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
-                            Tab.Title.Font = Enum.Font.RobotoMedium
+                            Tab.Title.Font = Enum.Font.RobotoBold
                         end)
                     end
                 end
@@ -940,7 +1026,7 @@ function NoctraLib:MakeWindow(WindowConfig)
             Size = UDim2.new(1, -IconOffset - 16, 1, 0),
             Position = UDim2.new(0, IconOffset + 8, 0, 0),
             BackgroundTransparency = 1,
-            Font = Enum.Font.RobotoBlack,
+            Font = Enum.Font.RobotoBold,
             TextSize = 13,
             TextXAlignment = Enum.TextXAlignment.Center,
             TextYAlignment = Enum.TextYAlignment.Center,
@@ -1211,7 +1297,7 @@ function NoctraLib:MakeWindow(WindowConfig)
             AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(0.5, 19, 0.5, 0),
             TextXAlignment = Enum.TextXAlignment.Center,
-            Font = Enum.Font.RobotoMedium,
+            Font = Enum.Font.RobotoBold,
             TextTransparency = 1
         })
 
@@ -1582,7 +1668,7 @@ function NoctraLib:MakeWindow(WindowConfig)
             AddThemeObject(SetProps(MakeElement("Label", TabConfig.Name, 14), {
                 Size = UDim2.new(1, -35, 1, 0),
                 Position = UDim2.new(0, 35, 0, 0),
-                Font = Enum.Font.RobotoMedium,
+                Font = Enum.Font.RobotoBold,
                 TextTransparency = 0.4,
                 TextWrapped = false,
                 Name = "Title"
@@ -1628,7 +1714,7 @@ function NoctraLib:MakeWindow(WindowConfig)
             Val.FirstTab = false
             TabFrame.Ico.ImageTransparency = 0
             TabFrame.Title.TextTransparency = 0
-            TabFrame.Title.Font = Enum.Font.RobotoBlack
+            TabFrame.Title.Font = Enum.Font.RobotoBold
             ContainerLeft.Visible = true
             ContainerRight.Visible = true
         end
@@ -1636,7 +1722,7 @@ function NoctraLib:MakeWindow(WindowConfig)
         AddConnection(TabFrame.MouseButton1Click, function()
             for _, Tab in next, TabHolder:GetChildren() do
                 if Tab:IsA("TextButton") then
-                    Tab.Title.Font = Enum.Font.RobotoMedium
+                    Tab.Title.Font = Enum.Font.RobotoBold
                     TweenService:Create(Tab.Ico, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = 0.4}):Play()
                     TweenService:Create(Tab.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
                 end
@@ -1648,7 +1734,7 @@ function NoctraLib:MakeWindow(WindowConfig)
             end
             TweenService:Create(TabFrame.Ico, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = 0}):Play()
             TweenService:Create(TabFrame.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
-            TabFrame.Title.Font = Enum.Font.RobotoBlack
+            TabFrame.Title.Font = Enum.Font.RobotoBold
             ContainerLeft.Visible = true
             ContainerRight.Visible = true
         end)
@@ -1685,7 +1771,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         AddThemeObject(SetProps(MakeElement("Label", Text, 14), {
                             Size = UDim2.new(1, -12, 1, 0),
                             Position = UDim2.new(0, 12, 0, 0),
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             Name = "Content",
                             TextWrapped = true,
                         }), "Text"),
@@ -1724,7 +1810,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         AddThemeObject(SetProps(MakeElement("Label", Text, 14), {
                             Size = UDim2.new(1, -12, 0, 14),
                             Position = UDim2.new(0, 12, 0, 10),
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             Name = "Title"
                         }), "Text"),
                         AddThemeObject(SetProps(MakeElement("Label", "", 13), {
@@ -1781,7 +1867,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         AddThemeObject(SetProps(MakeElement("Label", ButtonConfig.Name, 14), {
                             Size = UDim2.new(1, -40, 1, 0),
                             Position = UDim2.new(0, 12, 0, 0),
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             Name = "Content",
                             TextWrapped = true,
                             BackgroundTransparency = 1,
@@ -1947,7 +2033,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                             }),
                             AddThemeObject(SetProps(MakeElement("Label", ToggleConfig.DefaultBind, 14), {
                                 Size = UDim2.new(1, 0, 1, 0),
-                                Font = Enum.Font.RobotoMedium,
+                                Font = Enum.Font.RobotoBold,
                                 TextXAlignment = Enum.TextXAlignment.Center,
                                 Name = "Value",
                             }), "Text"),
@@ -2003,7 +2089,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         AddThemeObject(SetProps(MakeElement("Label", ToggleConfig.Name, 14), {
                             Size = UDim2.new(1, -50, 0, 0),
                             Position = UDim2.new(0, 12, 0, 19),
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             Name = "Content",
                             TextWrapped = true,
                         }), "Text"),
@@ -2150,7 +2236,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         AddThemeObject(SetProps(MakeElement("Label", "value", 13), {
                             Size = UDim2.new(1, -12, 0, 14),
                             Position = UDim2.new(0, 12, 0, 6),
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             Name = "Value",
                             TextTransparency = 0,
                         }), "Text")
@@ -2165,7 +2251,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         AddThemeObject(SetProps(MakeElement("Label", "value", 13), {
                             Size = UDim2.new(1, -12, 0, 14),
                             Position = UDim2.new(0, 12, 0, 6),
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             Name = "Value",
                             TextTransparency = 0.8
                         }), "Text"),
@@ -2181,7 +2267,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         AddThemeObject(SetProps(MakeElement("Label", SliderConfig.Name, 14), {
                             Size = UDim2.new(1, -12, 0, 14),
                             Position = UDim2.new(0, 12, 0, 10),
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             Name = "Content",
                             TextWrapped = true,
                         }), "Text"),
@@ -2364,7 +2450,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                             AddThemeObject(SetProps(MakeElement("Label", DropdownConfig.Name, 14), {
                                 Size = UDim2.new(1, -12, 1, 0),
                                 Position = UDim2.new(0, 12, 0, 0),
-                                Font = Enum.Font.RobotoMedium,
+                                Font = Enum.Font.RobotoBold,
                                 Name = "Content"
                             }), "Text"),
                             AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
@@ -2398,7 +2484,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                             TextColor3 = Color3.fromRGB(255, 255, 255),
                             PlaceholderColor3 = Color3.fromRGB(210,210,210),
                             PlaceholderText = (type(WindowConfig.SearchBar) == "table" and WindowConfig.SearchBar.Default) or "Search",
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             TextWrapped = true,
                             Text = '',
                             TextXAlignment = Enum.TextXAlignment.Center,
@@ -2645,7 +2731,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         }),
                         AddThemeObject(SetProps(MakeElement("Label", InitialKeyText, 14), {   -- ★ PATCH
                             Size = UDim2.new(1, 0, 1, 0),
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             TextXAlignment = Enum.TextXAlignment.Center,
                             Name = "Value",
                         }), "Text"),
@@ -2661,7 +2747,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         AddThemeObject(SetProps(MakeElement("Label", BindConfig.Name, 14), {
                             Size = UDim2.new(1, -45, 1, 0),
                             Position = UDim2.new(0, 12, 0, 0),
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             Name = "Content",
                             TextWrapped = true,
                         }), "Text"),
@@ -2848,7 +2934,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         TextColor3 = Color3.fromRGB(255, 255, 255),
                         PlaceholderColor3 = Color3.fromRGB(210,210,210),
                         PlaceholderText = "Input",
-                        Font = Enum.Font.RobotoMedium,
+                        Font = Enum.Font.RobotoBold,
                         TextXAlignment = Enum.TextXAlignment.Center,
                         TextSize = 14,
                         ClearTextOnFocus = false
@@ -2873,7 +2959,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         AddThemeObject(SetProps(MakeElement("Label", TextboxConfig.Name, 14), {
                             Size = UDim2.new(1, -12, 1, 0),
                             Position = UDim2.new(0, 12, 0, 0),
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             Name = "Content",
                             TextWrapped = false,
                         }), "Text"),
@@ -3082,7 +3168,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                         AddThemeObject(SetProps(MakeElement("Label", "Reset", 14), {
                             Size = UDim2.new(1, -40, 1, 0),
                             Position = UDim2.new(0, 12, 0, 0),
-                            Font = Enum.Font.RobotoMedium,
+                            Font = Enum.Font.RobotoBold,
                             Name = "Content",
                             TextWrapped = true,
                             BackgroundTransparency = 1,
@@ -3136,7 +3222,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                             AddThemeObject(SetProps(MakeElement("Label", ColorpickerConfig.Name, 15), {
                                 Size = UDim2.new(1, 0, 0, 38),
                                 Position = UDim2.new(0, 12, 0, 0),
-                                Font = Enum.Font.RobotoMedium,
+                                Font = Enum.Font.RobotoBold,
                                 Name = "Content",
                                 TextWrapped = true,
                             }), "Text"),
@@ -3359,7 +3445,7 @@ function NoctraLib:MakeWindow(WindowConfig)
                 AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
                     Size = UDim2.new(1, -12, 0, 20),
                     Position = UDim2.new(0, 0, 0, -20),
-                    Font = Enum.Font.RobotoMedium
+                    Font = Enum.Font.RobotoBold
                 }), "Text"),
                 SetChildren(SetProps(MakeElement("TFrame"), {
                     AnchorPoint = Vector2.new(0, 0),
