@@ -1,1985 +1,3407 @@
--- language: Lua, file: NoctraHub.lua
--- NoctraLib / NoBreath Hub — Script Único (Corrigido)
--- Autor: ENI (para LO, com amor)
--- 
--- INSTRUÇÕES: Cole este bloco no seu executor. Depois cole o Bloco 2
--- exatamente embaixo, e depois o Bloco 3. O arquivo inteiro forma
--- um único script.
+--[[
+    NoctraLib v1.0
+    Criado para NoBreath Hub
+    Estilo: Dark UI com bordas ciano (Stroke 1.5), fundo preto (18,18,18), fonte Roboto.
+    Inclui: SaveManager (persistência nativa), ThemeManager (temas) e NoctraLib (UI).
+    Ícones via Lucide.
+]]
 
---// ============================================================
---// PARTE 1: SERVIÇOS, CONSTANTES E THEME MANAGER
---// ============================================================
-
-local cloneref = (cloneref or clonereference or function(instance: any) return instance end)
-local clonefunction = (clonefunction or copyfunction or function(func) return func end)
-
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local LocalPlayer = game:GetService("Players").LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
-local HttpService = cloneref(game:GetService("HttpService"))
 
---// CORREÇÃO DE COMPATIBILIDADE DE ARQUIVOS
-local isfolder, isfile, listfiles = isfolder, isfile, listfiles
-local isfolder_copy, isfile_copy, listfiles_copy = clonefunction(isfolder), clonefunction(isfile), clonefunction(listfiles)
-local isfolder_success, isfolder_error = pcall(function() return isfolder_copy("test" .. tostring(math.random(1000000, 9999999))) end)
-
-if isfolder_success == false or typeof(isfolder_error) ~= "boolean" then
-    isfolder = function(folder)
-        local success, data = pcall(isfolder_copy, folder)
-        return (if success then data else false)
-    end
-    isfile = function(file)
-        local success, data = pcall(isfile_copy, file)
-        return (if success then data else false)
-    end
-    listfiles = function(folder)
-        local success, data = pcall(listfiles_copy, folder)
-        return (if success then data else {})
-    end
-end
-
---// ============================================================
---// CONSTANTES WCAG (Acessibilidade de Contraste)
---// ============================================================
-local ContrastWarnThreshold = 4.5
-local SrgbLinearThreshold = 0.03928
-local SrgbLinearDivisor = 12.92
-local SrgbGammaOffset = 0.055
-local SrgbGammaScale = 1.055
-local SrgbGammaExponent = 2.4
-local LuminanceRedWeight, LuminanceGreenWeight, LuminanceBlueWeight = 0.2126, 0.7152, 0.0722
-local ContrastRatioOffset = 0.05
-
---// ============================================================
---// SISTEMA DE SOM
---// ============================================================
-local SoundRegistry = {
-    Click    = "rbxassetid://124476359159008",
-    Success  = "rbxassetid://116841974988859",
-    Error    = "rbxassetid://97972687450528",
-    Type     = "rbxassetid://9113879534",
-    Activate = "rbxassetid://9083627113",
-}
-
-local SoundController = {}
-SoundController.__index = SoundController
-
-function SoundController.new(player)
-    local self = setmetatable({}, SoundController)
-    self.Player = player
-    self.Cache = {}
-    return self
-end
-
-function SoundController:Play(soundKey, volume)
-    local id = SoundRegistry[soundKey]
-    if not id then return end
-    local sound = self.Cache[soundKey]
-    if not sound or not sound.Parent then
-        sound = Instance.new("Sound")
-        sound.SoundId = id
-        sound.Volume = volume or 0.5
-        sound.Parent = self.Player:FindFirstChild("PlayerGui") or self.Player:WaitForChild("PlayerGui")
-        self.Cache[soundKey] = sound
-    end
-    sound.Volume = volume or 0.5
-    sound.TimePosition = 0
-    sound:Play()
-end
-
-function SoundController:Stop(soundKey)
-    local sound = self.Cache[soundKey]
-    if sound and sound.Parent then
-        sound:Stop()
-    end
-end
-
-local NoctraSound = SoundController.new(LocalPlayer)
-
---// ============================================================
---// TEMA PADRÃO E TEMAS EMBUTIDOS
---// ============================================================
-local DefaultTheme = {
-    Main       = Color3.fromRGB(0, 0, 0),
-    Element    = Color3.fromRGB(12, 12, 12),
-    Stroke     = Color3.fromRGB(255, 255, 255),
-    Divider    = Color3.fromRGB(60, 60, 60),
-    Text       = Color3.fromRGB(255, 255, 255),
-    TextDark   = Color3.fromRGB(160, 160, 160),
-    Font       = Enum.Font.Roboto,
-    ToggleOn   = Color3.fromRGB(200, 200, 200),
-    Accent     = Color3.fromRGB(255, 255, 255),
-    Error      = Color3.fromRGB(200, 60, 60),
-    BackgroundImage = "",
-}
-
-local BuiltInThemes = {
-    ["Noctra"] = { 1, { Main = "000000", Element = "0c0c0c", Stroke = "ffffff", Divider = "3c3c3c", Text = "ffffff", TextDark = "a0a0a0", Font = "Roboto", ToggleOn = "c8c8c8", Accent = "ffffff", Error = "c83c3c", BackgroundImage = "" } },
-    ["Blood Moon"] = { 2, { Main = "0d0000", Element = "1a0000", Stroke = "ff3c3c", Divider = "4a1010", Text = "ffdddd", TextDark = "b06060", Font = "Roboto", ToggleOn = "ff3c3c", Accent = "ff3c3c", Error = "ff0000", BackgroundImage = "" } },
-    ["Void"] = { 3, { Main = "05000a", Element = "0e001a", Stroke = "a855ff", Divider = "301850", Text = "e8d5ff", TextDark = "9070b0", Font = "Roboto", ToggleOn = "a855ff", Accent = "a855ff", Error = "ff0055", BackgroundImage = "" } },
-    ["Cyber"] = { 4, { Main = "000a0a", Element = "001515", Stroke = "00ffcc", Divider = "005040", Text = "ccffee", TextDark = "60b090", Font = "Roboto", ToggleOn = "00ffcc", Accent = "00ffcc", Error = "ff0044", BackgroundImage = "" } },
-    ["Ghost"] = { 5, { Main = "0a0a0a", Element = "141414", Stroke = "404040", Divider = "282828", Text = "808080", TextDark = "505050", Font = "Roboto", ToggleOn = "606060", Accent = "606060", Error = "804040", BackgroundImage = "" } },
-    ["Gilded"] = { 6, { Main = "0a0800", Element = "141000", Stroke = "ffd700", Divider = "504000", Text = "ffeebb", TextDark = "b09040", Font = "Roboto", ToggleOn = "ffd700", Accent = "ffd700", Error = "ff4400", BackgroundImage = "" } },
-    ["Ice"] = { 7, { Main = "000a10", Element = "001420", Stroke = "66d9ff", Divider = "205060", Text = "ddf4ff", TextDark = "80b0c0", Font = "Roboto", ToggleOn = "66d9ff", Accent = "66d9ff", Error = "ff4466", BackgroundImage = "" } },
-    ["Ember"] = { 8, { Main = "0a0500", Element = "1a0a00", Stroke = "ff6600", Divider = "502800", Text = "ffddcc", TextDark = "b07040", Font = "Roboto", ToggleOn = "ff6600", Accent = "ff6600", Error = "ff0044", BackgroundImage = "" } },
-    ["Neon"] = { 9, { Main = "0a000a", Element = "140014", Stroke = "ff00ff", Divider = "500050", Text = "ffddff", TextDark = "b060b0", Font = "Roboto", ToggleOn = "ff00ff", Accent = "ff00ff", Error = "ff0000", BackgroundImage = "" } },
-    ["Forest"] = { 10, { Main = "000a00", Element = "001400", Stroke = "00ff66", Divider = "004020", Text = "ddffdd", TextDark = "60b060", Font = "Roboto", ToggleOn = "00ff66", Accent = "00ff66", Error = "ff3300", BackgroundImage = "" } },
-    ["Paper"] = { 11, { Main = "1a1a1a", Element = "222222", Stroke = "e8e0d0", Divider = "505050", Text = "f0f0f0", TextDark = "a0a0a0", Font = "Roboto", ToggleOn = "e8e0d0", Accent = "e8e0d0", Error = "c04040", BackgroundImage = "" } },
-}
-
---// ============================================================
---// HELPERS DE COR E FONTE
---// ============================================================
-local function HexToColor3(hex)
-    if typeof(hex) == "Color3" then return hex end
-    if typeof(hex) ~= "string" then return nil end
-    hex = hex:gsub("#", "")
-    if #hex ~= 6 then return nil end
-    local success, color = pcall(Color3.fromHex, hex)
-    return success and color or nil
-end
-
-local function Color3ToHex(color)
-    if typeof(color) ~= "Color3" then return "" end
-    return color:ToHex()
-end
-
-local function EnumFontFromString(str)
-    if typeof(str) == "EnumItem" then return str end
-    if typeof(str) ~= "string" then return Enum.Font.Roboto end
-    local success, font = pcall(function() return Enum.Font[str] end)
-    return success and font or Enum.Font.Roboto
-end
-
---// ============================================================
---// THEME MANAGER
---// ============================================================
-local NoctraThemeManager = {
-    Library       = nil,
-    Folder        = "NoBreath/NoctraLib/themes",
-    Themes        = { ["Noctra"] = DefaultTheme },
-    BuiltIn       = BuiltInThemes,
-    ActiveTheme   = "Noctra",
-    DefaultThemeName = nil,
-    Registry      = {},
-    SoundController = NoctraSound,
-    ContrastLabel = nil,
-    ContrastWasPoor = false,
-    AppliedToTab  = false,
-}
-
-function NoctraThemeManager:Register(object, propertyMap)
-    if not object or not propertyMap then return end
-    self.Registry[object] = propertyMap
-    return object
-end
-
-function NoctraThemeManager:ApplyTheme(themeName, skipAnimation)
-    local theme = self.Themes[themeName]
-    if not theme then return false end
-    self.ActiveTheme = themeName
-
-    for object, map in pairs(self.Registry) do
-        if not object or not object.Parent then
-            self.Registry[object] = nil
-            continue
-        end
-        for property, themeKey in pairs(map) do
-            local value = theme[themeKey]
-            if value == nil then continue end
-            if typeof(value) == "Color3" and property:find("Color") then
-                object[property] = value
-            elseif typeof(value) == "EnumItem" and property == "Font" then
-                object[property] = value
-            end
-        end
-    end
-
-    if self.Library and self.Library.Scheme then
-        for key, value in pairs(theme) do
-            self.Library.Scheme[key] = value
-        end
-        if self.Library.UpdateColors then
-            self.Library:UpdateColors(skipAnimation)
-        end
-    end
-    return true
-end
-
-function NoctraThemeManager:GetThemePath(themeName)
-    if not self.Folder or self.Folder == "" then return false end
-    return string.format("%s/%s.json", self.Folder, themeName)
-end
-
-function NoctraThemeManager:BuildFolderTree()
-    local paths = string.split(self.Folder, "/")
-    local current = ""
-    for _, part in ipairs(paths) do
-        current = current == "" and part or (current .. "/" .. part)
-        if not isfolder(current) then pcall(makefolder, current) end
-    end
-end
-
-function NoctraThemeManager:Init(player)
-    self.SoundController = SoundController.new(player)
-    self:BuildFolderTree()
-
-    for name, data in pairs(self.BuiltIn) do
-        local parsed = {}
-        for key, value in pairs(data[2]) do
-            if key == "Font" then parsed.Font = EnumFontFromString(value)
-            elseif key == "BackgroundImage" then parsed.BackgroundImage = value
-            else local color = HexToColor3(value); if color then parsed[key] = color end end
-        end
-        for key, value in pairs(DefaultTheme) do
-            if parsed[key] == nil then parsed[key] = value end
-        end
-        self.Themes[name] = parsed
-    end
-    return self
-end
-
-function NoctraThemeManager:PlaySound(key, volume)
-    if self.SoundController then self.SoundController:Play(key, volume) end
-end
-
---// ============================================================
---// PARTE 2: FIM DO THEME MANAGER E INÍCIO DO SAVE MANAGER
---// ============================================================
-
-function NoctraThemeManager:SaveCustomTheme(themeName)
-    if not themeName or themeName:match("^%s*$") then return false, "Nome inválido" end
-    if string.lower(themeName) == "default" then return false, "Nome reservado" end
-    local path = self:GetThemePath(themeName)
-    if path == false then return false, "Caminho inválido" end
-    self:BuildFolderTree()
-
-    local theme = self.Themes[self.ActiveTheme]
-    if not theme then return false, "Nenhum tema ativo" end
-
-    local data = {}
-    for key, value in pairs(theme) do
-        if typeof(value) == "Color3" then data[key] = Color3ToHex(value)
-        elseif typeof(value) == "EnumItem" then data[key] = tostring(value.Name)
-        else data[key] = value end
-    end
-
-    local successEncode, encoded = pcall(HttpService.JSONEncode, HttpService, data)
-    if not successEncode then return false, "Falha ao codificar" end
-
-    local successWrite, err = pcall(writefile, path, encoded)
-    if not successWrite then return false, "Falha ao escrever: " .. tostring(err) end
-
-    self.Themes[themeName] = theme
-    return true
-end
-
-function NoctraThemeManager:LoadCustomTheme(themeName)
-    if not themeName then return false, "Sem nome" end
-    local path = self:GetThemePath(themeName)
-    if path == false or not isfile(path) then return false, "Tema não encontrado" end
-
-    local successRead, content = pcall(readfile, path)
-    if not successRead then return false, "Falha ao ler" end
-
-    local successDecode, data = pcall(HttpService.JSONDecode, HttpService, content)
-    if not successDecode or typeof(data) ~= "table" then return false, "JSON inválido" end
-
-    local parsed = {}
-    for key, value in pairs(data) do
-        if key == "Font" or key == "FontFace" then parsed.Font = EnumFontFromString(value)
-        elseif key == "BackgroundImage" then parsed.BackgroundImage = value
-        else local color = HexToColor3(value); if color then parsed[key] = color end end
-    end
-    for key, value in pairs(DefaultTheme) do
-        if parsed[key] == nil then parsed[key] = value end
-    end
-
-    self.Themes[themeName] = parsed
-    return true
-end
-
-function NoctraThemeManager:DeleteCustomTheme(themeName)
-    if not themeName then return false, "Sem nome" end
-    local path = self:GetThemePath(themeName)
-    if path == false or not isfile(path) then return false, "Não existe" end
-    pcall(delfile, path)
-    if self.ActiveTheme == themeName then
-        self.ActiveTheme = "Noctra"
-        self.Themes["Noctra"] = DefaultTheme
-    end
-    return true
-end
-
-function NoctraThemeManager:GetDefaultThemePath()
-    if not self.Folder or self.Folder == "" then return false end
-    return string.format("%s/default.txt", self.Folder)
-end
-
-function NoctraThemeManager:SaveDefaultTheme(themeName)
-    local path = self:GetDefaultThemePath()
-    if path == false then return false, "Caminho inválido" end
-    self:BuildFolderTree()
-    pcall(writefile, path, themeName)
-    self.DefaultThemeName = themeName
-    return true
-end
-
-function NoctraThemeManager:GetDefaultThemeName()
-    self:BuildFolderTree()
-    local path = self:GetDefaultThemePath()
-    if path == false or not isfile(path) then return "none" end
-    local success, name = pcall(readfile, path)
-    if not (success and typeof(name) == "string") then return "none" end
-    self.DefaultThemeName = name
-    return name
-end
-
-function NoctraThemeManager:LoadDefaultTheme()
-    local name = self:GetDefaultThemeName()
-    if name == "none" then return end
-    if self.Themes[name] then self:ApplyTheme(name) end
-end
-
-function NoctraThemeManager:ReloadCustomThemes()
-    local folder = self.Folder
-    if not folder or folder == "" then return {} end
-    pcall(makefolder, folder)
-    local success, files = pcall(listfiles, folder)
-    if not (success and typeof(files) == "table") then return {} end
-
-    local fileNames = {}
-    for _, filePath in ipairs(files) do
-        local rawFileName = filePath:match("(.+)%..+$")
-        if not rawFileName then continue end
-        local position = rawFileName:gsub("\\", "/"):find("/[^/]*$")
-        local fileName = position and rawFileName:sub(position + 1) or rawFileName
-        if not fileName or fileName == "default" then continue end
-        table.insert(fileNames, fileName)
-    end
-    table.sort(fileNames)
-    return fileNames
-end
-
-function NoctraThemeManager:GetAllThemes()
-    local list = {}
-    for name in pairs(self.Themes) do table.insert(list, name) end
-    table.sort(list)
-    return list
-end
-
-function NoctraThemeManager:GetBuiltInThemes()
-    local list = {}
-    for name in pairs(self.BuiltIn) do table.insert(list, name) end
-    table.sort(list)
-    return list
-end
-
-function NoctraThemeManager:GetContrastReport()
-    local theme = self.Themes[self.ActiveTheme]
-    if not theme then return { Ratio = math.huge, PairName = "", Passes = true } end
-    local textColor = theme.Text or Color3.new(1, 1, 1)
-    local surfaces = {
-        { Name = "texto vs. fundo principal", Color = theme.Main or Color3.new(0, 0, 0) },
-        { Name = "texto vs. fundo de elemento", Color = theme.Element or Color3.new(0.05, 0.05, 0.05) },
-    }
-    local worstRatio, worstName = math.huge, ""
-    for _, surface in ipairs(surfaces) do
-        local la = (function(c)
-            local function lin(ch) return ch <= SrgbLinearThreshold and ch / SrgbLinearDivisor or ((ch + SrgbGammaOffset) / SrgbGammaScale) ^ SrgbGammaExponent end
-            return LuminanceRedWeight * lin(c.R) + LuminanceGreenWeight * lin(c.G) + LuminanceBlueWeight * lin(c.B)
-        end)(surface.Color)
-        local lt = (function(c)
-            local function lin(ch) return ch <= SrgbLinearThreshold and ch / SrgbLinearDivisor or ((ch + SrgbGammaOffset) / SrgbGammaScale) ^ SrgbGammaExponent end
-            return LuminanceRedWeight * lin(c.R) + LuminanceGreenWeight * lin(c.G) + LuminanceBlueWeight * lin(c.B)
-        end)(textColor)
-        local lighter = math.max(la, lt)
-        local darker = math.min(la, lt)
-        local ratio = (lighter + ContrastRatioOffset) / (darker + ContrastRatioOffset)
-        if ratio < worstRatio then
-            worstRatio = ratio
-            worstName = surface.Name
-        end
-    end
-    return { Ratio = worstRatio, PairName = worstName, Passes = worstRatio >= ContrastWarnThreshold }
-end
-
-function NoctraThemeManager:UpdateContrastWarning()
-    local label = self.ContrastLabel
-    if not label or label.Destroyed then return end
-    local report = self:GetContrastReport()
-    if report.Passes then
-        if label.SetText then label:SetText(string.format("Contraste: bom (%.1f:1)", report.Ratio)) end
-    else
-        if label.SetText then
-            label:SetText(string.format("Contraste baixo (%.1f:1) entre %s. Mínimo recomendado: %.1f:1.", report.Ratio, report.PairName, ContrastWarnThreshold))
-        end
-    end
-    self.ContrastWasPoor = not report.Passes
-end
-
-function NoctraThemeManager:SetLibrary(lib)
-    self.Library = lib
-end
-
---// ============================================================
---// SAVE MANAGER
---// ============================================================
-local NoctraSaveManager = {
-    Library = nil,
-    Folder = "NoBreath",
-    SubFolder = "NoctraLib/settings",
-    Ignore = {},
-    LoadingOrder = {},
-    UseLoadingOrder = false,
-    AutoloadConfig = nil,
-}
-
-function NoctraSaveManager:SetLibrary(Library)
-    NoctraSaveManager.Library = Library
-end
-
-local SpecialValueParser = {
-    UDim2 = {
-        Encode = function(Value) return { X = { Scale = Value.X.Scale, Offset = Value.X.Offset }, Y = { Scale = Value.Y.Scale, Offset = Value.Y.Offset } } end,
-        Decode = function(Data)
-            if typeof(Data) == "table" then return UDim2.new(Data.X.Scale, Data.X.Offset, Data.Y.Scale, Data.Y.Offset)
-            elseif typeof(Data) == "UDim2" then return Data end
-            return nil
-        end
-    }
-}
-
-local ElementParser = {}; do
-    local function CreateParser(ElementType, LibraryIndex, Save, Load, CustomElementFetcher)
-        ElementParser[ElementType] = {
-            Save = function(Index, Element, ...)
-                local Data = Save(Index, Element, ...)
-                Data.type = ElementType
-                Data.idx = Index
-                return Data
-            end,
-            Load = function(Index, Data)
-                if CustomElementFetcher == true then return Load(nil, Data) end
-                local Elements = NoctraSaveManager.Library and NoctraSaveManager.Library[LibraryIndex]
-                local Element = Elements and Elements[Index]
-                return Load(Element, Data)
-            end
+local NoctraLib = {
+    Elements = {},
+    UIElements = {},
+    ThemeObjects = {},
+    Connections = {},
+    Flags = {},
+    Tabs = {},
+    Themes = {
+        Default = {
+            Main = {Color = Color3.fromRGB(18, 18, 18), Transparency = 0.05},
+            Stroke = {Color = Color3.fromRGB(0, 150, 255), Transparency = 0.3},
+            Divider = {Color = Color3.fromRGB(0, 150, 255), Transparency = 0.85},
+            Text = {Color = Color3.fromRGB(240, 240, 240), Transparency = 0},
+            TextDark = {Color = Color3.fromRGB(150, 150, 160), Transparency = 0},
+            Elements = {Color = Color3.fromRGB(30, 30, 30), Transparency = 0.35}
         }
+    },
+    NotificationSettings = {Enabled = true, Printing = true},
+    WindowConfig = {AutoSizedTabHolderX = false, AutoSizedTabHolderY = "Window"},
+    BackgroundConfig = {EnabledBackground = false, BackgroundName = "", BackgroundTransparency = 0.2},
+    SelectedTheme = "Default",
+    ScriptFolder = "NoctraLib",
+    GameName = tostring(game.PlaceId),
+    Window = nil,
+}
+
+-- Icons
+local Icons = {}
+local LucideIcons = loadstring(game:HttpGet("https://raw.githubusercontent.com/Utkaky/Main/refs/heads/main/SoundHub/icons.lua"))().assets
+
+-- Core
+local Noctra = Instance.new("ScreenGui")
+Noctra.Name = "NoctraLib"
+if syn then
+    pcall(function() syn.protect_gui(Noctra) end)
+    Noctra.Parent = CoreGui
+else
+    Noctra.Parent = CoreGui
+end
+
+function NoctraLib:IsRunning()
+    return Noctra.Parent == CoreGui
+end
+
+-- Local functions
+local function GetOrionIcon(IconName)
+    if Icons[IconName] ~= nil then return Icons[IconName] else return nil end
+end
+local function GetLucideIcon(IconName)
+    if IconName ~= nil then
+        return LucideIcons["lucide-"..IconName]
+    else
+        return nil
     end
-
-    CreateParser("Toggle", "Toggles",
-        function(Index, Toggle) return { value = Toggle.Value } end,
-        function(Element, Data)
-            if not Element then return end
-            if Element.Value == Data.value then Element:RunChanged(); return end
-            Element:SetValue(Data.value)
-        end
-    )
-
-    CreateParser("Slider", "Options",
-        function(Index, Slider) return { value = tostring(Slider.Value) } end,
-        function(Element, Data)
-            if not Element then return end
-            if tostring(Element.Value) == tostring(Data.value) then Element:RunChanged(); return end
-            Element:SetValue(tonumber(Data.value) or Data.value)
-        end
-    )
-
-    CreateParser("Dropdown", "Options",
-        function(Index, Dropdown) return { value = Dropdown.Value, multi = Dropdown.Multi } end,
-        function(Element, Data)
-            if not Element then return end
-            if Element.Value == Data.value then Element:RunChanged(); return end
-            Element:SetValue(Data.value)
-        end
-    )
-
-    CreateParser("ColorPicker", "Options",
-        function(Index, ColorPicker) return { value = ColorPicker.Value:ToHex(), transparency = ColorPicker.Transparency } end,
-        function(Element, Data)
-            if not Element then return end
-            Element:SetValueRGB(Color3.fromHex(Data.value), Data.transparency)
-        end
-    )
-
-    CreateParser("Input", "Options",
-        function(Index, Input) return { text = Input.Value } end,
-        function(Element, Data)
-            if not Element then return end
-            if typeof(Data.text) ~= "string" then return end
-            if Element.Value == Data.text then Element:RunChanged(); return end
-            Element:SetValue(Data.text)
-        end
-    )
 end
 
-local function Trim(text) return text:match("^%s*(.-)%s*$") end
-local function IsStringEmpty(text) return if typeof(text) == "string" then Trim(text) == "" else true end
-local function IsValidFolderPath(name)
-    return typeof(name) == "string" and Trim(name) ~= "" and not name:match('[<>:"|%?%*%z]')
+local function AddConnection(Signal, Function)
+    if (not NoctraLib:IsRunning()) then return end
+    local SignalConnect = Signal:Connect(Function)
+    table.insert(NoctraLib.Connections, SignalConnect)
+    return SignalConnect
 end
 
-local function SplitPath(path)
-    local result = {}
-    local current = ""
-    for part in string.gmatch(path, "[^/]+") do
-        current = current == "" and part or (current .. "/" .. part)
-        table.insert(result, current)
+task.spawn(function()
+    while (NoctraLib:IsRunning()) do wait() end
+    for _, Connection in next, NoctraLib.Connections do Connection:Disconnect() end
+end)
+
+local function Create(Name, Properties, Children)
+    local Object = Instance.new(Name)
+    for i, v in Properties or {} do Object[i] = v end
+    for i, v in Children or {} do v.Parent = Object end
+    return Object
+end
+
+local function CreateElement(ElementName, ElementFunction)
+    NoctraLib.Elements[ElementName] = function(...) return ElementFunction(...) end
+end
+
+local function MakeElement(ElementName, ...)
+    local NewElement = NoctraLib.Elements[ElementName](...)
+    return NewElement
+end
+
+local function SetProps(Element, Props)
+    table.foreach(Props, function(Property, Value) Element[Property] = Value end)
+    return Element
+end
+
+local function SetChildren(Element, Children)
+    table.foreach(Children, function(_, Child) Child.Parent = Element end)
+    return Element
+end
+
+local function Round(Number, Factor)
+    Number = tonumber(Number)
+    local sign = Number >= 0 and 1 or -1
+    local result = math.floor(Number / Factor + 0.5 * sign) * Factor
+    if result < 0 then result = result + Factor end
+    if Factor < 1 then
+        local str = tostring(Factor)
+        local dot = str:find("%.")
+        local precision = dot and #str - dot or 0
+        result = tonumber(string.format("%." .. precision .. "f", result))
     end
     return result
 end
 
-function NoctraSaveManager:GetPaths()
-    if IsStringEmpty(self.SubFolder) then
-        return if IsStringEmpty(self.Folder) then {} else SplitPath(self.Folder)
+local function ReturnProperty(Object, PropType)
+    if Object:IsA("Frame") or Object:IsA("TextButton") then return (PropType == "Color" and "BackgroundColor3") or "BackgroundTransparency" end
+    if Object:IsA("ScrollingFrame") then return (PropType == "Color" and "ScrollBarImageColor3") or "ScrollBarImageTransparency" end
+    if Object:IsA("UIStroke") then return (PropType == "Color" and "Color") or "Transparency" end
+    if Object:IsA("TextLabel") or Object:IsA("TextBox") then return (PropType == "Color" and "TextColor3") or "TextTransparency" end
+    if Object:IsA("ImageLabel") or Object:IsA("ImageButton") then return (PropType == "Color" and "ImageColor3") or "ImageTransparency" end
+end
+
+local function AddThemeObject(Object, Type)
+    if not NoctraLib.ThemeObjects[Type] then NoctraLib.ThemeObjects[Type] = {} end
+    table.insert(NoctraLib.ThemeObjects[Type], Object)
+    Object[ReturnProperty(Object, "Color")] = NoctraLib.Themes[NoctraLib.SelectedTheme][Type]["Color"]
+    Object[ReturnProperty(Object, "Transparency")] = NoctraLib.Themes[NoctraLib.SelectedTheme][Type]["Transparency"]
+    return Object
+end
+
+local function SetTheme()
+    for Name, Type in pairs(NoctraLib.ThemeObjects) do
+        for _, Object in pairs(Type) do
+            Object[ReturnProperty(Object, "Color")] = NoctraLib.Themes[NoctraLib.SelectedTheme][Name]["Color"]
+            Object[ReturnProperty(Object, "Transparency")] = NoctraLib.Themes[NoctraLib.SelectedTheme][Name]["Transparency"]
+        end
     end
-    return SplitPath(self.Folder .. "/" .. self.SubFolder)
 end
 
-function NoctraSaveManager:BuildFolderTree(skipWhenCreated)
-    local paths = self:GetPaths()
-    if #paths == 0 then return false end
-    if skipWhenCreated == true and isfolder(paths[1]) then return true end
-    for _, path in ipairs(paths) do
-        if isfolder(path) then continue end
-        pcall(makefolder, path)
-    end
-    return true
+local function PackColor(Color)
+    return {R = Color.R * 255, G = Color.G * 255, B = Color.B * 255}
 end
 
-function NoctraSaveManager:CheckFolderTree() return self:BuildFolderTree(true) end
-
-function NoctraSaveManager:GetCurrentSettingsPath()
-    if IsStringEmpty(self.Folder) then return false end
-    if IsStringEmpty(self.SubFolder) then return self.Folder end
-    return self.Folder .. "/" .. self.SubFolder
+local function UnpackColor(Color)
+    return Color3.fromRGB(Color.R, Color.G, Color.B)
 end
 
-function NoctraSaveManager:GetConfigPath(ConfigName)
-    local settingsPath = self:GetCurrentSettingsPath()
-    if settingsPath == false then return false end
-    return string.format("%s/%s.json", settingsPath, ConfigName)
-end
-
-function NoctraSaveManager:DoesConfigExist(ConfigName)
-    local path = self:GetConfigPath(ConfigName)
-    return if path == false then false else isfile(path)
-end
-
-function NoctraSaveManager:GetAutoloadPath()
-    local settingsPath = self:GetCurrentSettingsPath()
-    if settingsPath == false then return false end
-    return string.format("%s/autoload.txt", settingsPath)
-end
-
-function NoctraSaveManager:SetFolder(Folder)
-    assert(IsValidFolderPath(Folder), "Caminho inválido")
-    self.Folder = Folder
-    self:BuildFolderTree()
-end
-
-function NoctraSaveManager:SetSubFolder(SubFolder)
-    assert(IsValidFolderPath(SubFolder), "Caminho inválido")
-    self.SubFolder = SubFolder
-    self:BuildFolderTree()
-end
-
-function NoctraSaveManager:RefreshConfigList()
-    local settingsPath = self:GetCurrentSettingsPath()
-    if settingsPath == false then return {} end
-    pcall(makefolder, settingsPath)
-    local success, files = pcall(listfiles, settingsPath)
-    if not (success and typeof(files) == "table") then return {} end
-    local fileNames = {}
-    for _, filePath in ipairs(files) do
-        local rawFileName = filePath:match("(.+)%..+$")
-        if not rawFileName then continue end
-        local position = rawFileName:gsub("\\", "/"):find("/[^/]*$")
-        local fileName = position and rawFileName:sub(position + 1) or rawFileName
-        if not fileName or fileName == "autoload" then continue end
-        table.insert(fileNames, fileName)
-    end
-    return fileNames
-end
-
-function NoctraSaveManager:SetIgnoreIndexes(Indexes)
-    assert(typeof(Indexes) == "table", "Expected table")
-    for _, Index in ipairs(Indexes) do self.Ignore[Index] = true end
-end
-
-function NoctraSaveManager:SaveJSON(ConfigName)
-    local Library = self.Library
-    local IgnoreIndexes = self.Ignore
-    local CurrentData = {
-        timestamp = os.date("%d.%m.%Y %H:%M:%S"),
-        name = ConfigName or "",
-        objects = {},
-    }
-    for Index, Toggle in pairs(Library.Toggles or {}) do
-        if not Toggle.Type or IgnoreIndexes[Index] then continue end
-        local Parser = ElementParser[Toggle.Type]
-        if Parser then table.insert(CurrentData.objects, Parser.Save(Index, Toggle)) end
-    end
-    for Index, Option in pairs(Library.Options or {}) do
-        if not Option.Type or IgnoreIndexes[Index] then continue end
-        local Parser = ElementParser[Option.Type]
-        if Parser then table.insert(CurrentData.objects, Parser.Save(Index, Option)) end
-    end
-    local successEncode, encoded = pcall(HttpService.JSONEncode, HttpService, CurrentData)
-    if not successEncode then return "", false, "Falha ao codificar" end
-    return encoded, true
-end
-
-function NoctraSaveManager:Save(ConfigName)
-    if IsStringEmpty(ConfigName) then return false, "Nome inválido" end
-    if string.lower(ConfigName) == "autoload" then return false, "Nome reservado" end
-    local path = self:GetConfigPath(ConfigName)
-    if path == false then return false, "Caminho inválido" end
-    self:CheckFolderTree()
-    local encoded, success, err = self:SaveJSON(ConfigName)
-    if not success then return false, err end
-    local successWrite, writeErr = pcall(writefile, path, encoded)
-    if not successWrite then return false, "Falha ao escrever: " .. tostring(writeErr) end
-    return true
-end
-
-function NoctraSaveManager:LoadJSON(Content)
-    if IsStringEmpty(Content) then return false, "Nenhum JSON" end
-    local success, decoded = pcall(HttpService.JSONDecode, HttpService, Content)
-    if not success or typeof(decoded) ~= "table" or typeof(decoded.objects) ~= "table" then return false, "JSON inválido" end
-    local Library = self.Library
-    for _, Option in ipairs(decoded.objects) do
-        if not Option.type or self.Ignore[Option.idx] then continue end
-        local Parser = ElementParser[Option.type]
-        if Parser then task.defer(Parser.Load, Option.idx, Option) end
-    end
-    return true
-end
-
-function NoctraSaveManager:Load(ConfigName)
-    if IsStringEmpty(ConfigName) then return false, "Nenhum config selecionado" end
-    local path = self:GetConfigPath(ConfigName)
-    if path == false or not isfile(path) then return false, "Arquivo não existe" end
-    local success, content = pcall(readfile, path)
-    if not success then return false, "Falha ao ler" end
-    return self:LoadJSON(content)
-end
-
-function NoctraSaveManager:Delete(ConfigName)
-    if IsStringEmpty(ConfigName) then return false, "Nenhum config selecionado" end
-    local path = self:GetConfigPath(ConfigName)
-    if path == false or not isfile(path) then return false, "Arquivo não existe" end
-    local success, err = pcall(delfile, path)
-    if not success then return false, tostring(err) end
-    return true
-end
-
-function NoctraSaveManager:GetAutoloadConfig()
-    self:CheckFolderTree()
-    local path = self:GetAutoloadPath()
-    if path == false or not isfile(path) then return "none", false, "Autoload não definido" end
-    local success, name = pcall(readfile, path)
-    if not (success and typeof(name) == "string") then return "none", false, tostring(name) end
-    if not self:DoesConfigExist(name) then return "none", false, "Config não encontrado" end
-    self.AutoloadConfig = name
-    return name, true
-end
-
-function NoctraSaveManager:SaveAutoloadConfig(ConfigName)
-    if IsStringEmpty(ConfigName) then return false, "Nenhum config selecionado" end
-    self:CheckFolderTree()
-    local path = self:GetAutoloadPath()
-    if path == false then return false, "Caminho inválido" end
-    if not self:DoesConfigExist(ConfigName) then return false, "Config não existe" end
-    local success, err = pcall(writefile, path, ConfigName)
-    if not success then return false, tostring(err) end
-    self.AutoloadConfig = ConfigName
-    return true
-end
-
-function NoctraSaveManager:LoadAutoloadConfig()
-    local name, success, err = self:GetAutoloadConfig()
-    if not success then return end
-    local loadSuccess, loadErr = self:Load(name)
-    if not loadSuccess then
-        if self.Library then self.Library:Notify({ Title = "Autoload", Content = "Falha ao carregar: " .. tostring(loadErr), Type = "error" }) end
-        return
-    end
-    if self.Library then self.Library:Notify({ Title = "Autoload", Content = "Config " .. name .. " carregado.", Type = "success" }) end
-end
-
-function NoctraSaveManager:DeleteAutoLoadConfig()
-    self:CheckFolderTree()
-    local path = self:GetAutoloadPath()
-    if path == false or not isfile(path) then return false, "Autoload não definido" end
-    local success, err = pcall(delfile, path)
-    if not success then return false, tostring(err) end
-    self.AutoloadConfig = nil
-    return true
-end
---// ============================================================
---// PARTE 3: NOCTRALIB (INTERFACE PRINCIPAL — CORRIGIDA)
---// ============================================================
-
-local NoctraLib = {
-    Options = {},
-    Toggles = {},
-    Tabs = {},
-    ThemeManager = NoctraThemeManager,
-    SaveManager = NoctraSaveManager,
-    Window = nil,
-    ScreenGui = nil,
-    Connections = {},
-    Scheme = DefaultTheme,
-    Player = LocalPlayer,
+local WhitelistedMouse = {
+    Enum.UserInputType.MouseButton1,
+    Enum.UserInputType.MouseButton2,
+    Enum.UserInputType.MouseButton3
+}
+local BlacklistedKeys = {
+    Enum.KeyCode.Unknown,
+    Enum.KeyCode.W,
+    Enum.KeyCode.A,
+    Enum.KeyCode.S,
+    Enum.KeyCode.D,
+    Enum.KeyCode.Up,
+    Enum.KeyCode.Left,
+    Enum.KeyCode.Down,
+    Enum.KeyCode.Right,
+    Enum.KeyCode.Slash,
+    Enum.KeyCode.Backspace,
+    Enum.KeyCode.Escape
 }
 
---// ============================================================
---// HELPERS DE UI DA LIBRARY
---// ============================================================
-local function Create(className, properties, children)
-    local obj = Instance.new(className)
-    for k, v in pairs(properties or {}) do obj[k] = v end
-    for _, child in pairs(children or {}) do child.Parent = obj end
-    return obj
-end
-
-local function AddStroke(parent, thickness, color)
-    return Create("UIStroke", {
-        Color = color or NoctraLib.Scheme.Stroke,
-        Thickness = thickness or 1.5,
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Parent = parent,
-    })
-end
-
-local function AddCorner(parent, radius)
-    return Create("UICorner", { CornerRadius = UDim.new(0, radius or 6), Parent = parent })
-end
-
-local function MakeDraggable(frame, dragArea)
-    local dragging, dragInput, mousePos, framePos = false, nil, nil, nil
-    dragArea.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            mousePos = input.Position
-            framePos = frame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
-        end
-    end)
-    dragArea.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - mousePos
-            frame.Position = UDim2.new(framePos.X.Scale, framePos.X.Offset + delta.X, framePos.Y.Scale, framePos.Y.Offset + delta.Y)
-        end
-    end)
-end
-
-local function MakeResizable(frame, sizeHandle)
-    local dragging, dragInput, mousePos, frameSize = false, nil, nil, nil
-    sizeHandle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            mousePos = input.Position
-            frameSize = frame.Size
-        end
-    end)
-    sizeHandle.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - mousePos
-            frame.Size = UDim2.new(
-                frameSize.X.Scale,
-                math.clamp(frameSize.X.Offset + delta.X, 400, 2000),
-                frameSize.Y.Scale,
-                math.clamp(frameSize.Y.Offset + delta.Y, 250, 1500)
-            )
-        end
-    end)
-end
-
---// ============================================================
---// NOTIFICAÇÕES
---// ============================================================
-local NotificationHolder = Create("Frame", {
-    Name = "NotificationHolder",
-    Parent = CoreGui,
-    BackgroundTransparency = 1,
-    Position = UDim2.new(1, -20, 1, -20),
-    Size = UDim2.new(0, 320, 1, -20),
-    AnchorPoint = Vector2.new(1, 1),
-}, {
-    Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Bottom, Padding = UDim.new(0, 10) })
-})
-
-function NoctraLib:Notify(config)
-    config = config or {}
-    local title = config.Title or config.Name or "Notificação"
-    local content = config.Content or config.Description or ""
-    local isError = config.Type == "error"
-    local sound = isError and "Error" or "Success"
-    local borderColor = isError and NoctraLib.Scheme.Error or NoctraLib.Scheme.Stroke
-
-    NoctraSound:Play(sound)
-
-    local notifFrame = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        BackgroundTransparency = 1,
-        Parent = NotificationHolder,
-    })
-
-    local inner = Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        BackgroundColor3 = NoctraLib.Scheme.Element,
-        BackgroundTransparency = 0.1,
-        Parent = notifFrame,
-    }, {
-        AddCorner(notifFrame, 8),
-        AddStroke(notifFrame, 1.5, borderColor),
-        Create("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12) }),
-        Create("TextLabel", {
-            Name = "Title", Text = title, Font = Enum.Font.RobotoBold, TextSize = 14, TextColor3 = NoctraLib.Scheme.Text,
-            TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16)
-        }),
-        Create("TextLabel", {
-            Name = "Content", Text = content, Font = Enum.Font.Roboto, TextSize = 13, TextColor3 = NoctraLib.Scheme.TextDark,
-            TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y, TextWrapped = true, Position = UDim2.new(0, 0, 0, 20)
-        }),
-        Create("Frame", {
-            Name = "TimerBar", Size = UDim2.new(1, 0, 0, 2), BackgroundColor3 = borderColor,
-            Position = UDim2.new(0, 0, 1, -4), BackgroundTransparency = 0.2
-        }, { AddCorner(notifFrame, 2) })
-    })
-
-    TweenService:Create(inner, TweenInfo.new(0.3, Enum.EasingStyle.Quint), { BackgroundTransparency = 0 }):Play()
-    TweenService:Create(inner.TimerBar, TweenInfo.new(3, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 2) }):Play()
-
-    task.delay(3, function()
-        TweenService:Create(inner, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
-        task.wait(0.3)
-        notifFrame:Destroy()
-    end)
-end
-
---// ============================================================
---// ATUALIZAÇÃO DE CORES (CHAMADA PELO THEME MANAGER)
---// ============================================================
-function NoctraLib:UpdateColors()
-    --// Atualiza o Scheme local
-    for key, value in pairs(NoctraThemeManager.Themes[NoctraThemeManager.ActiveTheme] or {}) do
-        NoctraLib.Scheme[key] = value
-    end
-
-    --// Reaplica as cores em todos os objetos registrados
-    for object, map in pairs(NoctraThemeManager.Registry) do
-        if not object or not object.Parent then
-            NoctraThemeManager.Registry[object] = nil
-            continue
-        end
-        for property, themeKey in pairs(map) do
-            local value = NoctraLib.Scheme[themeKey]
-            if value == nil then continue end
-            if typeof(value) == "Color3" and property:find("Color") then
-                object[property] = value
-            elseif typeof(value) == "EnumItem" and property == "Font" then
-                object[property] = value
-            end
-        end
+local function CheckKey(Table, Key)
+    for _, v in next, Table do
+        if v == Key then return true end
     end
 end
 
---// ============================================================
---// CRIAÇÃO DA JANELA PRINCIPAL
---// ============================================================
-function NoctraLib:MakeWindow(config)
-    config = config or {}
-    local windowName = config.Name or "NoctraLib"
-    local subName = config.SubName or "v1.0"
-    local logoIcon = config.Logo or ""
-    local toggleKey = config.ToggleKey or Enum.KeyCode.RightShift
+-- ==========================================
+-- SAVE MANAGER INTEGRADO
+-- ==========================================
+local SaveManager = {}
+SaveManager.Directory = "NoctraLib_Configs"
+SaveManager.FilePath = SaveManager.Directory .. "/config.json"
+SaveManager.Config = {}
 
-    local oldGui = CoreGui:FindFirstChild("NoctraLib")
-    if oldGui then oldGui:Destroy() end
-
-    local ScreenGui = Create("ScreenGui", {
-        Name = "NoctraLib", Parent = CoreGui, ResetOnSpawn = false, IgnoreGuiInset = true, ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    })
-    NoctraLib.ScreenGui = ScreenGui
-
-    local MainWindow = Create("Frame", {
-        Name = "MainWindow", Parent = ScreenGui,
-        Size = config.Size or UDim2.new(0, 620, 0, 410), Position = UDim2.new(0.5, -310, 0.5, -205),
-        BackgroundColor3 = NoctraLib.Scheme.Main, BackgroundTransparency = 0.05, BorderSizePixel = 0, ClipsDescendants = true,
-    }, { AddCorner(MainWindow, 10), AddStroke(MainWindow, 1.5, NoctraLib.Scheme.Stroke) })
-
-    local TopBar = Create("Frame", {
-        Name = "TopBar", Parent = MainWindow, Size = UDim2.new(1, 0, 0, 45),
-        BackgroundColor3 = NoctraLib.Scheme.Main, BackgroundTransparency = 0.2, BorderSizePixel = 0,
-    })
-
-    Create("Frame", {
-        Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = NoctraLib.Scheme.Divider, Parent = TopBar
-    })
-
-    if logoIcon ~= "" then
-        Create("ImageLabel", {
-            Parent = TopBar, Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(0, 15, 0.5, -12),
-            BackgroundTransparency = 1, Image = logoIcon, ImageColor3 = NoctraLib.Scheme.Stroke
-        })
+function SaveManager:Init()
+    if not isfolder(SaveManager.Directory) then
+        makefolder(SaveManager.Directory)
     end
-
-    local TitleLabel = Create("TextLabel", {
-        Parent = TopBar, Size = UDim2.new(1, -120, 1, 0), Position = UDim2.new(0, 0, 0, 0),
-        BackgroundTransparency = 1, Text = windowName, Font = Enum.Font.RobotoBold, TextSize = 16,
-        TextColor3 = NoctraLib.Scheme.Text, TextXAlignment = Enum.TextXAlignment.Right
-    })
-    local SubTitleLabel = Create("TextLabel", {
-        Parent = TopBar, Size = UDim2.new(1, -120, 1, 0), Position = UDim2.new(0, 0, 0, 0),
-        BackgroundTransparency = 1, Text = subName, Font = Enum.Font.Roboto, TextSize = 11,
-        TextColor3 = NoctraLib.Scheme.TextDark, TextXAlignment = Enum.TextXAlignment.Right
-    })
-    SubTitleLabel.Position = UDim2.new(0, 0, 0, 5)
-    SubTitleLabel.Size = UDim2.new(1, -120, 1, 0)
-    TitleLabel.Position = UDim2.new(0, 0, 0, -5)
-
-    local ButtonFrame = Create("Frame", {
-        Parent = TopBar, Size = UDim2.new(0, 90, 0, 30), Position = UDim2.new(0, 10, 0.5, -15),
-        BackgroundTransparency = 1,
-    }, { Create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), VerticalAlignment = Enum.VerticalAlignment.Center }) })
-
-    local function CreateControlButton(icon, callback)
-        local btn = Create("TextButton", { Size = UDim2.new(0, 20, 0, 20), BackgroundTransparency = 1, Text = "", Parent = ButtonFrame, AutoButtonColor = false })
-        local img = Create("ImageLabel", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Image = icon, ImageColor3 = NoctraLib.Scheme.TextDark, Parent = btn })
-        btn.MouseEnter:Connect(function() TweenService:Create(img, TweenInfo.new(0.2), { ImageColor3 = NoctraLib.Scheme.Text }):Play() end)
-        btn.MouseLeave:Connect(function() TweenService:Create(img, TweenInfo.new(0.2), { ImageColor3 = NoctraLib.Scheme.TextDark }):Play() end)
-        btn.MouseButton1Click:Connect(function()
-            NoctraSound:Play("Click")
-            callback()
+    if isfile(SaveManager.FilePath) then
+        local success, data = pcall(function()
+            return HttpService:JSONDecode(readfile(SaveManager.FilePath))
         end)
-        return btn
-    end
-
-    CreateControlButton("rbxassetid://102326100327209", function() MainWindow.Visible = false end)
-    CreateControlButton("rbxassetid://10734896206", function()
-        TweenService:Create(MainWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
-            Size = MainWindow.Size.Y.Offset > 45 and UDim2.new(0, 300, 0, 45) or config.Size or UDim2.new(0, 620, 0, 410)
-        }):Play()
-    end)
-    CreateControlButton("rbxassetid://10734924532", function()
-        TweenService:Create(MainWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {
-            Size = MainWindow.Size.X.Offset > 800 and UDim2.new(0, 620, 0, 410) or UDim2.new(0, 1000, 0, 620)
-        }):Play()
-    end)
-
-    local DragPoint = Create("Frame", { Name = "DragPoint", Size = UDim2.new(1, -100, 0, 45), Position = UDim2.new(0, 100, 0, 0), BackgroundTransparency = 1, Active = true, Parent = TopBar })
-    MakeDraggable(MainWindow, DragPoint)
-
-    local ResizeHandle = Create("Frame", { Name = "ResizeHandle", Size = UDim2.new(0, 15, 0, 15), Position = UDim2.new(1, -5, 1, -5), BackgroundTransparency = 1, Active = true, Parent = MainWindow })
-    MakeResizable(MainWindow, ResizeHandle)
-
-    local ContentArea = Create("Frame", { Name = "ContentArea", Parent = MainWindow, Size = UDim2.new(1, 0, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundTransparency = 1 })
-
-    local TabList = Create("ScrollingFrame", {
-        Name = "TabList", Parent = ContentArea, Size = UDim2.new(0, 130, 1, 0),
-        BackgroundTransparency = 1, ScrollBarThickness = 0, BorderSizePixel = 0, CanvasSize = UDim2.new(0, 0, 0, 0),
-    }, {
-        Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 5) }),
-        Create("UIPadding", { PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) })
-    })
-
-    local ElementArea = Create("ScrollingFrame", {
-        Name = "ElementArea", Parent = ContentArea, Size = UDim2.new(1, -130, 1, 0), Position = UDim2.new(0, 130, 0, 0),
-        BackgroundTransparency = 1, ScrollBarThickness = 0, BorderSizePixel = 0, CanvasSize = UDim2.new(0, 0, 0, 0),
-    }, {
-        Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }),
-        Create("UIPadding", { PaddingTop = UDim.new(0, 10), PaddingRight = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10) })
-    })
-
-    NoctraLib.Window = MainWindow
-    NoctraLib.WindowObject = { MainWindow = MainWindow, ContentArea = ContentArea, TabList = TabList, ElementArea = ElementArea }
-
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == toggleKey then
-            MainWindow.Visible = not MainWindow.Visible
-            NoctraSound:Play("Click", 0.4)
+        if success then
+            SaveManager.Config = data
         end
-    end)
-
-    return NoctraLib.WindowObject
+    end
 end
 
---// ============================================================
---// CRIAÇÃO DE TABS E ELEMENTOS
---// ============================================================
-function NoctraLib:MakeTab(config)
-    config = config or {}
-    local tabName = config.Name or "Tab"
-    local tabIcon = config.Icon or "rbxassetid://10734924532"
-
-    local TabButton = Create("TextButton", {
-        Name = tabName, Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = NoctraLib.Scheme.Main, BackgroundTransparency = 1,
-        Text = "", Parent = NoctraLib.WindowObject.TabList, AutoButtonColor = false,
-    }, {
-        AddCorner(TabButton, 6), AddStroke(TabButton, 1.5, NoctraLib.Scheme.Stroke),
-        Create("ImageLabel", { Name = "Icon", Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0, 10, 0.5, -8), BackgroundTransparency = 1, Image = tabIcon, ImageColor3 = NoctraLib.Scheme.TextDark }),
-        Create("TextLabel", { Name = "Title", Size = UDim2.new(1, -35, 1, 0), Position = UDim2.new(0, 32, 0, 0), BackgroundTransparency = 1, Text = tabName, Font = Enum.Font.RobotoBold, TextSize = 13, TextColor3 = NoctraLib.Scheme.TextDark, TextXAlignment = Enum.TextXAlignment.Left })
-    })
-
-    local TabContent = Create("Frame", {
-        Name = tabName .. "Content", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Visible = false, Parent = NoctraLib.WindowObject.ElementArea,
-    }, { Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }) })
-
-    TabContent.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        NoctraLib.WindowObject.ElementArea.CanvasSize = UDim2.new(0, 0, 0, TabContent.UIListLayout.AbsoluteContentSize.Y + 20)
+function SaveManager:Save()
+    local success, encoded = pcall(function()
+        return HttpService:JSONEncode(SaveManager.Config)
     end)
-
-    local TabObject = { Name = tabName, Content = TabContent, Button = TabButton }
-
-    TabButton.MouseButton1Click:Connect(function()
-        NoctraSound:Play("Click")
-        for _, child in pairs(NoctraLib.WindowObject.ElementArea:GetChildren()) do
-            if child:IsA("Frame") then child.Visible = false end
-        end
-        TabContent.Visible = true
-        for _, btn in pairs(NoctraLib.WindowObject.TabList:GetChildren()) do
-            if btn:IsA("TextButton") then
-                btn.BackgroundTransparency = 1
-                if btn.Title then btn.Title.TextColor3 = NoctraLib.Scheme.TextDark end
-                if btn.Icon then btn.Icon.ImageColor3 = NoctraLib.Scheme.TextDark end
-            end
-        end
-        TabButton.BackgroundTransparency = 0.8
-        TabButton.Title.TextColor3 = NoctraLib.Scheme.Text
-        TabButton.Icon.ImageColor3 = NoctraLib.Scheme.Text
-    end)
-
-    if #NoctraLib.WindowObject.TabList:GetChildren() == 2 then
-        TabButton.BackgroundTransparency = 0.8
-        TabButton.Title.TextColor3 = NoctraLib.Scheme.Text
-        TabButton.Icon.ImageColor3 = NoctraLib.Scheme.Text
-        TabContent.Visible = true
-    end
-
-    table.insert(NoctraLib.Tabs, TabObject)
-
-    local TabMethods = {}
-
-    function TabMethods:AddSection(config)
-        config = config or {}
-        local SectionFrame = Create("Frame", { Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Parent = TabContent }, {
-            Create("TextLabel", { Size = UDim2.new(1, 0, 1, 0), Text = config.Name or "Seção", Font = Enum.Font.RobotoBold, TextSize = 12, TextColor3 = NoctraLib.Scheme.TextDark, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1 }),
-            Create("Frame", { Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = NoctraLib.Scheme.Divider, BackgroundTransparency = 0.5 })
-        })
-        return SectionFrame
-    end
-
-    function TabMethods:AddButton(config)
-        config = config or {}
-        local BtnFrame = Create("Frame", { Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = NoctraLib.Scheme.Element, BackgroundTransparency = 0.2, Parent = TabContent }, { AddCorner(BtnFrame, 6), AddStroke(BtnFrame, 1.5, NoctraLib.Scheme.Stroke) })
-        local ClickBtn = Create("TextButton", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", Parent = BtnFrame })
-        Create("TextLabel", { Name = "Title", Size = UDim2.new(1, -20, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = config.Text or "Botão", Font = Enum.Font.RobotoBold, TextSize = 13, TextColor3 = NoctraLib.Scheme.Text, TextXAlignment = Enum.TextXAlignment.Left })
-        ClickBtn.MouseEnter:Connect(function() TweenService:Create(BtnFrame, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(30, 30, 30) }):Play() end)
-        ClickBtn.MouseLeave:Connect(function() TweenService:Create(BtnFrame, TweenInfo.new(0.2), { BackgroundColor3 = NoctraLib.Scheme.Element }):Play() end)
-        ClickBtn.MouseButton1Click:Connect(function()
-            NoctraSound:Play("Activate")
-            if config.Func then config.Func() end
-        end)
-        local BtnObj = { Instance = BtnFrame }
-        return BtnObj
-    end
-
-    function TabMethods:AddToggle(config)
-        config = config or {}
-        local flag = config.Flag or config.Name or "Toggle"
-        local ToggleFrame = Create("Frame", { Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = NoctraLib.Scheme.Element, BackgroundTransparency = 0.2, Parent = TabContent }, { AddCorner(ToggleFrame, 6), AddStroke(ToggleFrame, 1.5, NoctraLib.Scheme.Stroke) })
-        local ClickBtn = Create("TextButton", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", Parent = ToggleFrame })
-        Create("TextLabel", { Name = "Title", Size = UDim2.new(1, -50, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = config.Name or "Toggle", Font = Enum.Font.RobotoBold, TextSize = 13, TextColor3 = NoctraLib.Scheme.Text, TextXAlignment = Enum.TextXAlignment.Left })
-        local ToggleBox = Create("Frame", { Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(1, -25, 0.5, -10), BackgroundColor3 = NoctraLib.Scheme.Main, Parent = ToggleFrame }, { AddCorner(ToggleBox, 4), AddStroke(ToggleBox, 1.5, NoctraLib.Scheme.Stroke), Create("ImageLabel", { Name = "Check", Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0.5, -6, 0.5, -6), BackgroundTransparency = 1, Image = "rbxassetid://10709790644", ImageColor3 = NoctraLib.Scheme.Text, ImageTransparency = 1 }) })
-        local state = config.Default or false
-        local function update()
-            if state then
-                TweenService:Create(ToggleBox, TweenInfo.new(0.2), { BackgroundColor3 = NoctraLib.Scheme.ToggleOn }):Play()
-                TweenService:Create(ToggleBox.Check, TweenInfo.new(0.2), { ImageTransparency = 0 }):Play()
-            else
-                TweenService:Create(ToggleBox, TweenInfo.new(0.2), { BackgroundColor3 = NoctraLib.Scheme.Main }):Play()
-                TweenService:Create(ToggleBox.Check, TweenInfo.new(0.2), { ImageTransparency = 1 }):Play()
-            end
-        end
-        update()
-        ClickBtn.MouseButton1Click:Connect(function()
-            state = not state
-            update()
-            NoctraSound:Play("Activate")
-            if config.Callback then config.Callback(state) end
-        end)
-        local ToggleObj = { Type = "Toggle", Value = state, Flag = flag, Instance = ToggleFrame, SetValue = function(self, val) state = val; update(); if config.Callback then config.Callback(val) end end, RunChanged = function(self) if config.Callback then config.Callback(state) end end }
-        NoctraLib.Options[flag] = ToggleObj
-        NoctraLib.Toggles[flag] = ToggleObj
-        return ToggleObj
-    end
-
-    function TabMethods:AddSlider(config)
-        config = config or {}
-        local flag = config.Flag or config.Name or "Slider"
-        local min, max = config.Min or 0, config.Max or 100
-        local default = config.Default or min
-        local SliderFrame = Create("Frame", { Size = UDim2.new(1, 0, 0, 55), BackgroundColor3 = NoctraLib.Scheme.Element, BackgroundTransparency = 0.2, Parent = TabContent }, { AddCorner(SliderFrame, 6), AddStroke(SliderFrame, 1.5, NoctraLib.Scheme.Stroke) })
-        Create("TextLabel", { Name = "Title", Size = UDim2.new(1, -20, 0, 15), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, Text = config.Name or "Slider", Font = Enum.Font.RobotoBold, TextSize = 12, TextColor3 = NoctraLib.Scheme.Text, TextXAlignment = Enum.TextXAlignment.Left })
-        local BarBackground = Create("Frame", { Size = UDim2.new(1, -20, 0, 8), Position = UDim2.new(0, 10, 0, 30), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Parent = SliderFrame }, { AddCorner(BarBackground, 4), AddStroke(BarBackground, 1, NoctraLib.Scheme.Divider) })
-        local Fill = Create("Frame", { Size = UDim2.new((default - min) / (max - min), 0, 1, 0), BackgroundColor3 = NoctraLib.Scheme.Accent, Parent = BarBackground }, { AddCorner(Fill, 4) })
-        local ValLabel = Create("TextLabel", { Size = UDim2.new(0, 50, 0, 15), Position = UDim2.new(1, -50, 0, 5), BackgroundTransparency = 1, Text = tostring(default), Font = Enum.Font.RobotoBold, TextSize = 12, TextColor3 = NoctraLib.Scheme.TextDark, TextXAlignment = Enum.TextXAlignment.Right })
-        local dragging = false
-        local function updateSlider(input)
-            local mouseX = math.clamp(input.Position.X - BarBackground.AbsolutePosition.X, 0, BarBackground.AbsoluteSize.X)
-            local percent = mouseX / BarBackground.AbsoluteSize.X
-            local val = math.floor((percent * (max - min)) + min)
-            Fill.Size = UDim2.new(percent, 0, 1, 0)
-            ValLabel.Text = tostring(val)
-            SliderObj.Value = val
-            if config.Callback then config.Callback(val) end
-        end
-        BarBackground.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; updateSlider(input) end end)
-        UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then updateSlider(input) end end)
-        UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then if dragging then NoctraSound:Play("Activate", 0.3) end; dragging = false end end)
-        local SliderObj = { Type = "Slider", Value = default, Flag = flag, Instance = SliderFrame, SetValue = function(self, val) self.Value = val; local percent = (val - min) / (max - min); Fill.Size = UDim2.new(percent, 0, 1, 0); ValLabel.Text = tostring(val); if config.Callback then config.Callback(val) end end, RunChanged = function(self) if config.Callback then config.Callback(self.Value) end end }
-        NoctraLib.Options[flag] = SliderObj
-        return SliderObj
-    end
-
-    function TabMethods:AddDropdown(config)
-        config = config or {}
-        local flag = config.Flag or config.Name or "Dropdown"
-        local values = config.Values or {}
-        local default = config.Default or (values[1] or "")
-        local DropFrame = Create("Frame", { Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = NoctraLib.Scheme.Element, BackgroundTransparency = 0.2, Parent = TabContent, ClipsDescendants = true }, { AddCorner(DropFrame, 6), AddStroke(DropFrame, 1.5, NoctraLib.Scheme.Stroke) })
-        local ClickBtn = Create("TextButton", { Size = UDim2.new(1, 0, 0, 35), BackgroundTransparency = 1, Text = "", Parent = DropFrame })
-        Create("TextLabel", { Name = "Title", Size = UDim2.new(1, -40, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = config.Name or "Dropdown", Font = Enum.Font.RobotoBold, TextSize = 13, TextColor3 = NoctraLib.Scheme.Text, TextXAlignment = Enum.TextXAlignment.Left })
-        local ValueLabel = Create("TextLabel", { Size = UDim2.new(0, 100, 1, 0), Position = UDim2.new(1, -110, 0, 0), BackgroundTransparency = 1, Text = default, Font = Enum.Font.Roboto, TextSize = 13, TextColor3 = NoctraLib.Scheme.TextDark, TextXAlignment = Enum.TextXAlignment.Right })
-        local Arrow = Create("ImageLabel", { Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(1, -25, 0.5, -8), BackgroundTransparency = 1, Image = "rbxassetid://10709790644", ImageColor3 = NoctraLib.Scheme.TextDark, Rotation = 0 })
-        local DropList = Create("ScrollingFrame", { Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(0, 0, 0, 35), BackgroundColor3 = NoctraLib.Scheme.Main, BackgroundTransparency = 0.1, ClipsDescendants = true, Parent = DropFrame }, { AddCorner(DropList, 6), Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 2) }), Create("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4) }) })
-        local isOpen = false
-        local function updateList()
-            for _, child in pairs(DropList:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
-            for _, val in ipairs(values) do
-                local optBtn = Create("TextButton", { Size = UDim2.new(1, 0, 0, 25), BackgroundTransparency = 1, Text = val, Font = Enum.Font.Roboto, TextSize = 12, TextColor3 = NoctraLib.Scheme.TextDark, TextXAlignment = Enum.TextXAlignment.Left, Parent = DropList })
-                Create("UIPadding", { PaddingLeft = UDim.new(0, 10) }).Parent = optBtn
-                optBtn.MouseEnter:Connect(function() optBtn.TextColor3 = NoctraLib.Scheme.Text end)
-                optBtn.MouseLeave:Connect(function() optBtn.TextColor3 = NoctraLib.Scheme.TextDark end)
-                optBtn.MouseButton1Click:Connect(function()
-                    ValueLabel.Text = val
-                    DropdownObj.Value = val
-                    if config.Callback then config.Callback(val) end
-                    NoctraSound:Play("Activate")
-                    isOpen = false
-                    TweenService:Create(DropList, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
-                    TweenService:Create(Arrow, TweenInfo.new(0.2), { Rotation = 0 }):Play()
-                end)
-            end
-            DropList.CanvasSize = UDim2.new(0, 0, 0, #values * 27 + 8)
-        end
-        updateList()
-        ClickBtn.MouseButton1Click:Connect(function()
-            isOpen = not isOpen
-            NoctraSound:Play("Click")
-            TweenService:Create(Arrow, TweenInfo.new(0.2), { Rotation = isOpen and 180 or 0 }):Play()
-            TweenService:Create(DropList, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, isOpen and math.min(#values * 27 + 8, 150) or 0) }):Play()
-            DropFrame.Size = isOpen and UDim2.new(1, 0, 0, 35 + math.min(#values * 27 + 8, 150)) or UDim2.new(1, 0, 0, 35)
-        end)
-        local DropdownObj = { Type = "Dropdown", Value = default, Flag = flag, Instance = DropFrame, SetValue = function(self, val) self.Value = val; ValueLabel.Text = val; if config.Callback then config.Callback(val) end end, RunChanged = function(self) if config.Callback then config.Callback(self.Value) end end }
-        NoctraLib.Options[flag] = DropdownObj
-        return DropdownObj
-    end
-
-    function TabMethods:AddTextbox(config)
-        config = config or {}
-        local flag = config.Flag or config.Name or "Textbox"
-        local default = config.Default or ""
-        local TbFrame = Create("Frame", { Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = NoctraLib.Scheme.Element, BackgroundTransparency = 0.2, Parent = TabContent }, { AddCorner(TbFrame, 6), AddStroke(TbFrame, 1.5, NoctraLib.Scheme.Stroke) })
-        Create("TextLabel", { Name = "Title", Size = UDim2.new(1, -120, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = config.Name or "Textbox", Font = Enum.Font.RobotoBold, TextSize = 13, TextColor3 = NoctraLib.Scheme.Text, TextXAlignment = Enum.TextXAlignment.Left })
-        local InputBox = Create("TextBox", { Size = UDim2.new(0, 100, 0, 25), Position = UDim2.new(1, -110, 0.5, -12.5), BackgroundColor3 = NoctraLib.Scheme.Main, Text = default, PlaceholderText = "Digite...", Font = Enum.Font.Roboto, TextSize = 12, TextColor3 = NoctraLib.Scheme.Text, PlaceholderColor3 = NoctraLib.Scheme.TextDark, TextXAlignment = Enum.TextXAlignment.Center, Parent = TbFrame, ClearTextOnFocus = false }, { AddCorner(InputBox, 4), AddStroke(InputBox, 1.5, NoctraLib.Scheme.Divider) })
-        InputBox.Focused:Connect(function() TweenService:Create(InputBox, TweenInfo.new(0.2), { BackgroundColor3 = NoctraLib.Scheme.Element }):Play(); NoctraSound:Play("Type") end)
-        InputBox.FocusLost:Connect(function() TweenService:Create(InputBox, TweenInfo.new(0.2), { BackgroundColor3 = NoctraLib.Scheme.Main }):Play(); if config.Callback then config.Callback(InputBox.Text) end end)
-        local TextboxObj = { Type = "Input", Value = default, Flag = flag, Instance = TbFrame, SetValue = function(self, val) self.Value = val; InputBox.Text = val; if config.Callback then config.Callback(val) end end, RunChanged = function(self) if config.Callback then config.Callback(self.Value) end end }
-        NoctraLib.Options[flag] = TextboxObj
-        return TextboxObj
-    end
-
-    function TabMethods:AddColorPicker(config)
-        config = config or {}
-        local flag = config.Flag or config.Name or "ColorPicker"
-        local default = config.Default or Color3.fromRGB(255, 255, 255)
-        local CPFrame = Create("Frame", { Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = NoctraLib.Scheme.Element, BackgroundTransparency = 0.2, Parent = TabContent }, { AddCorner(CPFrame, 6), AddStroke(CPFrame, 1.5, NoctraLib.Scheme.Stroke) })
-        Create("TextLabel", { Name = "Title", Size = UDim2.new(1, -50, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = config.Name or "ColorPicker", Font = Enum.Font.RobotoBold, TextSize = 13, TextColor3 = NoctraLib.Scheme.Text, TextXAlignment = Enum.TextXAlignment.Left })
-        local ColorBox = Create("Frame", { Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(1, -25, 0.5, -10), BackgroundColor3 = default, Parent = CPFrame }, { AddCorner(ColorBox, 4), AddStroke(ColorBox, 1.5, NoctraLib.Scheme.Stroke) })
-        local palette = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 0, 0), Color3.fromRGB(0, 255, 0), Color3.fromRGB(0, 0, 255), Color3.fromRGB(255, 255, 0), Color3.fromRGB(255, 0, 255), Color3.fromRGB(0, 255, 255), Color3.fromRGB(0, 0, 0) }
-        local colorIndex = 1
-        local ClickBtn = Create("TextButton", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", Parent = CPFrame })
-        ClickBtn.MouseButton1Click:Connect(function()
-            colorIndex = colorIndex + 1
-            if colorIndex > #palette then colorIndex = 1 end
-            local newColor = palette[colorIndex]
-            ColorBox.BackgroundColor3 = newColor
-            ColorpickerObj.Value = newColor
-            if config.Callback then config.Callback(newColor) end
-            NoctraSound:Play("Activate")
-        end)
-        local ColorpickerObj = { Type = "ColorPicker", Value = default, Flag = flag, Instance = CPFrame, Transparency = 0, SetValueRGB = function(self, color, transp) self.Value = color; self.Transparency = transp; ColorBox.BackgroundColor3 = color; if config.Callback then config.Callback(color) end end, RunChanged = function(self) if config.Callback then config.Callback(self.Value) end end }
-        NoctraLib.Options[flag] = ColorpickerObj
-        return ColorpickerObj
-    end
-
-    return TabMethods
-end
-
---// ============================================================
---// CONSTRUÇÃO DA SEÇÃO DE CONFIGURAÇÕES (SAVE MANAGER)
---// ============================================================
-function NoctraSaveManager:BuildConfigSection(Tab, IconName)
-    assert(NoctraSaveManager.Library, "Library não definida. Chame SaveManager:SetLibrary(Library) primeiro.")
-    
-    Tab:AddSection({ Name = "Gerenciamento de Configs" })
-    
-    local ConfigNameInput = Tab:AddTextbox({
-        Name = "Nome do Config",
-        Default = "",
-        Flag = "SaveManager_ConfigName",
-        Callback = function() end
-    })
-    
-    local ConfigList = Tab:AddDropdown({
-        Name = "Lista de Configs",
-        Values = NoctraSaveManager:RefreshConfigList(),
-        Default = "",
-        Flag = "SaveManager_ConfigList",
-        Callback = function(value) end
-    })
-    
-    local ConfigJSONInput = Tab:AddTextbox({
-        Name = "JSON do Config",
-        Default = "",
-        Flag = "SaveManager_JSON",
-        Callback = function() end
-    })
-    
-    Tab:AddButton({
-        Text = "Criar / Salvar Config",
-        Func = function()
-            local name = ConfigNameInput.Value
-            if IsStringEmpty(name) then
-                NoctraLib:Notify({ Title = "Erro", Content = "Nome do config não pode ser vazio.", Type = "error" })
-                return
-            end
-            local success, err = NoctraSaveManager:Save(name)
-            if success then
-                NoctraLib:Notify({ Title = "Config", Content = "Config '" .. name .. "' salvo com sucesso.", Type = "success" })
-                ConfigList:SetValue(nil)
-            else
-                NoctraLib:Notify({ Title = "Erro", Content = "Falha ao salvar: " .. tostring(err), Type = "error" })
-            end
-        end
-    })
-    
-    Tab:AddButton({
-        Text = "Carregar Config Selecionado",
-        Func = function()
-            local name = ConfigList.Value
-            if IsStringEmpty(name) then
-                NoctraLib:Notify({ Title = "Erro", Content = "Selecione um config primeiro.", Type = "error" })
-                return
-            end
-            local success, err = NoctraSaveManager:Load(name)
-            if success then
-                NoctraLib:Notify({ Title = "Config", Content = "Config '" .. name .. "' carregado.", Type = "success" })
-            else
-                NoctraLib:Notify({ Title = "Erro", Content = "Falha ao carregar: " .. tostring(err), Type = "error" })
-            end
-        end
-    })
-    
-    Tab:AddButton({
-        Text = "Deletar Config Selecionado",
-        Func = function()
-            local name = ConfigList.Value
-            if IsStringEmpty(name) then
-                NoctraLib:Notify({ Title = "Erro", Content = "Selecione um config primeiro.", Type = "error" })
-                return
-            end
-            local success, err = NoctraSaveManager:Delete(name)
-            if success then
-                NoctraLib:Notify({ Title = "Config", Content = "Config '" .. name .. "' deletado.", Type = "success" })
-                ConfigList:SetValue(nil)
-            else
-                NoctraLib:Notify({ Title = "Erro", Content = "Falha ao deletar: " .. tostring(err), Type = "error" })
-            end
-        end
-    })
-    
-    Tab:AddButton({
-        Text = "Definir como Autoload",
-        Func = function()
-            local name = ConfigList.Value
-            if IsStringEmpty(name) then
-                NoctraLib:Notify({ Title = "Erro", Content = "Selecione um config primeiro.", Type = "error" })
-                return
-            end
-            local success, err = NoctraSaveManager:SaveAutoloadConfig(name)
-            if success then
-                NoctraLib:Notify({ Title = "Autoload", Content = "Config '" .. name .. "' definido como autoload.", Type = "success" })
-            else
-                NoctraLib:Notify({ Title = "Erro", Content = "Falha ao definir autoload: " .. tostring(err), Type = "error" })
-            end
-        end
-    })
-    
-    Tab:AddButton({
-        Text = "Resetar Autoload",
-        Func = function()
-            local success = NoctraSaveManager:DeleteAutoLoadConfig()
-            if success then
-                NoctraLib:Notify({ Title = "Autoload", Content = "Autoload resetado.", Type = "success" })
-            else
-                NoctraLib:Notify({ Title = "Autoload", Content = "Não havia autoload definido.", Type = "info" })
-            end
-        end
-    })
-    
-    Tab:AddButton({
-        Text = "Exportar Config Atual",
-        Func = function()
-            local encoded, success, err = NoctraSaveManager:SaveJSON()
-            if success then
-                ConfigJSONInput:SetValue(encoded)
-                if setclipboard then
-                    setclipboard(encoded)
-                end
-                NoctraLib:Notify({ Title = "Export", Content = "Config copiado para a área de transferência.", Type = "success" })
-            else
-                NoctraLib:Notify({ Title = "Erro", Content = "Falha ao exportar: " .. tostring(err), Type = "error" })
-            end
-        end
-    })
-    
-    Tab:AddButton({
-        Text = "Importar Config do JSON",
-        Func = function()
-            local json = ConfigJSONInput.Value
-            if IsStringEmpty(json) then
-                NoctraLib:Notify({ Title = "Erro", Content = "O campo JSON está vazio.", Type = "error" })
-                return
-            end
-            local success, err = NoctraSaveManager:LoadJSON(json)
-            if success then
-                NoctraLib:Notify({ Title = "Import", Content = "Config importado com sucesso.", Type = "success" })
-            else
-                NoctraLib:Notify({ Title = "Erro", Content = "Falha ao importar: " .. tostring(err), Type = "error" })
-            end
-        end
-    })
-    
-    Tab:AddButton({
-        Text = "Atualizar Lista de Configs",
-        Func = function()
-            ConfigList:SetValue(nil)
-            NoctraLib:Notify({ Title = "Configs", Content = "Lista atualizada.", Type = "info" })
-        end
-    })
-    
-    NoctraSaveManager:SetIgnoreIndexes({ "SaveManager_ConfigList", "SaveManager_ConfigName", "SaveManager_JSON" })
-    
-    return ConfigNameInput
-end
---// ============================================================
---// PARTE 4: SERVER MANAGER
---// ============================================================
-
-local NoctraServerManager = {
-    Library = nil,
-    Tab = nil,
-    PlayerListFrame = nil,
-    LogFrame = nil,
-    LogContent = nil,
-    PlayerButtons = {},
-    Connections = {},
-    ActionLog = {},
-    IsFrozen = {},
-    MaxLogLines = 50,
-}
-
---// ============================================================
---// SISTEMA DE LOG
---// ============================================================
-function NoctraServerManager:Log(action, playerName, details)
-    local timestamp = os.date("%H:%M:%S")
-    local entry = string.format("[%s] %s: %s%s", timestamp, action, playerName or "—", details and (" (" .. details .. ")") or "")
-    table.insert(self.ActionLog, 1, entry)
-    if #self.ActionLog > self.MaxLogLines then table.remove(self.ActionLog) end
-
-    if self.LogContent then
-        self.LogContent.Text = table.concat(self.ActionLog, "\n")
-        self.LogFrame.CanvasSize = UDim2.new(0, 0, 0, self.LogContent.TextBounds.Y + 12)
-    end
-    print("[NoctraServer] " .. entry)
-end
-
---// ============================================================
---// AÇÕES NOS JOGADORES
---// ============================================================
-local function GetCharacter(player) return player and player.Character end
-local function GetHumanoid(player) local char = GetCharacter(player); return char and char:FindFirstChildOfClass("Humanoid") or nil end
-
-function NoctraServerManager:Kick(player, reason)
-    if not player or player == LocalPlayer then
-        if self.Library then self.Library:Notify({ Title = "Kick", Content = "Não é possível kickar você mesmo.", Type = "error" }) end
-        return
-    end
-    reason = reason or "Kickado via NoBreath"
-    local success = pcall(function() player:Kick(reason) end)
     if success then
-        self:Log("KICK", player.Name, reason)
-        if self.Library then self.Library:Notify({ Title = "Kick", Content = player.Name .. " foi kickado.", Type = "success" }) end
-    else
-        if self.Library then self.Library:Notify({ Title = "Kick", Content = "Falha ao kickar " .. player.Name, Type = "error" }) end
+        writefile(SaveManager.FilePath, encoded)
     end
 end
 
-function NoctraServerManager:Freeze(player, state)
-    if not player or player == LocalPlayer then return end
-    local char = GetCharacter(player)
-    if not char then return end
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-
-    self.IsFrozen[player] = state
-    if state then
-        humanoid.WalkSpeed = 0
-        humanoid.JumpPower = 0
-    else
-        humanoid.WalkSpeed = 16
-        humanoid.JumpPower = 50
-    end
-    self:Log(state and "FREEZE" or "UNFREEZE", player.Name)
+function SaveManager:Set(Flag, Value)
+    SaveManager.Config[Flag] = Value
+    SaveManager:Save()
 end
 
-function NoctraServerManager:Damage(player, amount)
-    if not player or player == LocalPlayer then return end
-    local humanoid = GetHumanoid(player)
-    if humanoid then
-        humanoid:TakeDamage(amount or 10)
-        self:Log("DAMAGE", player.Name, tostring(amount or 10))
-    end
+function SaveManager:Get(Flag, Default)
+    return SaveManager.Config[Flag] or Default
 end
 
-function NoctraServerManager:Heal(player, amount)
-    if not player or player == LocalPlayer then return end
-    local humanoid = GetHumanoid(player)
-    if humanoid then
-        humanoid.Health = math.min(humanoid.Health + (amount or 50), humanoid.MaxHealth)
-        self:Log("HEAL", player.Name, tostring(amount or 50))
-    end
-end
-
-function NoctraServerManager:TeleportToPlayer(player)
-    if not player or player == LocalPlayer then return end
-    local char = GetCharacter(LocalPlayer)
-    local targetChar = GetCharacter(player)
-    if char and targetChar and char:FindFirstChild("HumanoidRootPart") and targetChar:FindFirstChild("HumanoidRootPart") then
-        char.HumanoidRootPart.CFrame = targetChar.HumanoidRootPart.CFrame
-        self:Log("TELEPORT", player.Name, "fui até ele")
-    end
-end
-
-function NoctraServerManager:TeleportPlayerToMe(player)
-    if not player or player == LocalPlayer then return end
-    local char = GetCharacter(LocalPlayer)
-    local targetChar = GetCharacter(player)
-    if char and targetChar and char:FindFirstChild("HumanoidRootPart") and targetChar:FindFirstChild("HumanoidRootPart") then
-        targetChar.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame
-        self:Log("TELEPORT", player.Name, "veio até mim")
-    end
-end
-
-function NoctraServerManager:SetWalkSpeed(player, speed)
-    if not player or player == LocalPlayer then return end
-    local humanoid = GetHumanoid(player)
-    if humanoid then
-        humanoid.WalkSpeed = speed or 16
-        self:Log("SPEED", player.Name, tostring(speed))
-    end
-end
-
-function NoctraServerManager:KickAll(reason)
-    local count = 0
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            pcall(function() player:Kick(reason or "Kick em massa via NoBreath") end)
-            count += 1
-        end
-    end
-    self:Log("KICK ALL", "—", tostring(count) .. " jogadores")
-    if self.Library then self.Library:Notify({ Title = "Kick All", Content = tostring(count) .. " jogadores kickados.", Type = "success" }) end
-end
-
-function NoctraServerManager:FreezeAll(state)
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then self:Freeze(player, state) end
-    end
-    self:Log(state and "FREEZE ALL" or "UNFREEZE ALL", "—")
-end
-
---// ============================================================
---// CONSTRUÇÃO DA UI
---// ============================================================
-function NoctraServerManager:BuildUI(Tab)
-    self.Tab = Tab
-    local Scheme = self.Library.Scheme or DefaultTheme
-
-    Tab:AddSection({ Name = "Jogadores Online" })
-
-    self.PlayerListFrame = Create("ScrollingFrame", {
-        Size = UDim2.new(1, 0, 0, 200),
-        BackgroundColor3 = Scheme.Main,
-        BackgroundTransparency = 0.3,
-        BorderSizePixel = 0,
-        ScrollBarThickness = 0,
-        CanvasSize = UDim2.new(0,0,0,0),
-    }, {
-        AddCorner(self.PlayerListFrame, 6),
-        AddStroke(self.PlayerListFrame, 1.5, Scheme.Stroke),
-        Create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 2) }),
-        Create("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) })
-    })
-    self.PlayerListFrame.Parent = Tab.Content
-
-    Tab:AddSection({ Name = "Ações Rápidas" })
-
-    local actionsRow = Create("Frame", { Size = UDim2.new(1, 0, 0, 35), BackgroundTransparency = 1 }, { Create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }) })
-    actionsRow.Parent = Tab.Content
-
-    local function MakeActionButton(text, color, callback)
-        local btn = Create("TextButton", {
-            Size = UDim2.new(0, 120, 1, 0),
-            BackgroundColor3 = color,
-            Text = "", Parent = actionsRow, AutoButtonColor = false,
-        }, {
-            AddCorner(btn, 6), AddStroke(btn, 1.5, Scheme.Stroke),
-            Create("TextLabel", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = text, Font = Enum.Font.RobotoBold, TextSize = 12, TextColor3 = Scheme.Text, TextXAlignment = Enum.TextXAlignment.Center })
-        })
-        btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.2), { BackgroundTransparency = 0.2 }):Play() end)
-        btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.2), { BackgroundTransparency = 0 }):Play() end)
-        btn.MouseButton1Click:Connect(function() NoctraSound:Play("Activate"); callback() end)
-        return btn
-    end
-
-    MakeActionButton("Kickar Todos", Scheme.Error, function() self:KickAll() end)
-    MakeActionButton("Congelar Todos", Scheme.Element, function() self:FreezeAll(true) end)
-    MakeActionButton("Descongelar", Scheme.Element, function() self:FreezeAll(false) end)
-
-    Tab:AddSection({ Name = "Log de Ações" })
-
-    self.LogFrame = Create("ScrollingFrame", {
-        Size = UDim2.new(1, 0, 0, 120),
-        BackgroundColor3 = Scheme.Main,
-        BackgroundTransparency = 0.3,
-        BorderSizePixel = 0,
-        ScrollBarThickness = 0,
-        CanvasSize = UDim2.new(0,0,0,0),
-    }, { AddCorner(self.LogFrame, 6), AddStroke(self.LogFrame, 1.5, Scheme.Stroke) })
-    self.LogFrame.Parent = Tab.Content
-
-    self.LogContent = Create("TextLabel", {
-        Size = UDim2.new(1, -12, 0, 0), Position = UDim2.new(0, 6, 0, 6), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1,
-        Text = "Aguardando ações...", Font = Enum.Font.Code, TextSize = 11, TextColor3 = Scheme.TextDark,
-        TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true,
-    })
-    self.LogContent.Parent = self.LogFrame
-
-    self:RefreshPlayerList()
-
-    table.insert(self.Connections, Players.PlayerAdded:Connect(function() self:RefreshPlayerList() end))
-    table.insert(self.Connections, Players.PlayerRemoving:Connect(function(player)
-        self.PlayerButtons[player] = nil
-        task.wait(0.5)
-        self:RefreshPlayerList()
-    end))
-
-    task.spawn(function()
-        while self.Tab and self.Tab.Content and self.Tab.Content.Parent do
-            task.wait(2)
-            pcall(function() self:RefreshPlayerList() end)
-        end
-    end)
-end
-
---// ============================================================
---// ATUALIZAÇÃO DA LISTA DE JOGADORES
---// ============================================================
-function NoctraServerManager:RefreshPlayerList()
-    if not self.PlayerListFrame then return end
-    local Scheme = self.Library.Scheme or DefaultTheme
-
-    for _, child in ipairs(self.PlayerListFrame:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
-    end
-    self.PlayerButtons = {}
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        local isFrozen = self.IsFrozen[player] == true
-        local entry = Create("Frame", {
-            Size = UDim2.new(1, 0, 0, 30),
-            BackgroundColor3 = isFrozen and Color3.fromRGB(20, 10, 10) or Scheme.Element,
-            BackgroundTransparency = 0.2,
-            Parent = self.PlayerListFrame,
-        }, {
-            AddCorner(entry, 4),
-            AddStroke(entry, 1, isFrozen and Scheme.Error or Scheme.Stroke),
-            Create("TextLabel", { Size = UDim2.new(0.5, 0, 1, 0), Position = UDim2.new(0, 8, 0, 0), BackgroundTransparency = 1, Text = player.Name, Font = Enum.Font.RobotoBold, TextSize = 12, TextColor3 = isFrozen and Scheme.Error or Scheme.Text, TextXAlignment = Enum.TextXAlignment.Left }),
-        })
-
-        local kickBtn = Create("TextButton", {
-            Size = UDim2.new(0, 50, 0, 22), Position = UDim2.new(1, -175, 0.5, -11),
-            BackgroundColor3 = Scheme.Error, Text = "", Parent = entry, AutoButtonColor = false,
-        }, { AddCorner(kickBtn, 4), AddStroke(kickBtn, 1, Scheme.Stroke), Create("TextLabel", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "Kick", Font = Enum.Font.RobotoBold, TextSize = 10, TextColor3 = Scheme.Text }) })
-        kickBtn.MouseButton1Click:Connect(function() NoctraSound:Play("Activate"); self:Kick(player, "Kickado via NoBreath Server Manager") end)
-
-        local freezeBtn = Create("TextButton", {
-            Size = UDim2.new(0, 50, 0, 22), Position = UDim2.new(1, -120, 0.5, -11),
-            BackgroundColor3 = isFrozen and Scheme.Error or Scheme.Element, Text = "", Parent = entry, AutoButtonColor = false,
-        }, { AddCorner(freezeBtn, 4), AddStroke(freezeBtn, 1, Scheme.Stroke), Create("TextLabel", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = isFrozen and "Unfreeze" or "Freeze", Font = Enum.Font.RobotoBold, TextSize = 10, TextColor3 = Scheme.Text }) })
-        freezeBtn.MouseButton1Click:Connect(function()
-            NoctraSound:Play("Activate")
-            local currentState = self.IsFrozen[player] == true
-            self:Freeze(player, not currentState)
-            self:RefreshPlayerList()
-        end)
-
-        local tpBtn = Create("TextButton", {
-            Size = UDim2.new(0, 50, 0, 22), Position = UDim2.new(1, -65, 0.5, -11),
-            BackgroundColor3 = Scheme.Element, Text = "", Parent = entry, AutoButtonColor = false,
-        }, { AddCorner(tpBtn, 4), AddStroke(tpBtn, 1, Scheme.Stroke), Create("TextLabel", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "TP", Font = Enum.Font.RobotoBold, TextSize = 10, TextColor3 = Scheme.Text }) })
-        tpBtn.MouseButton1Click:Connect(function()
-            NoctraSound:Play("Activate")
-            self:TeleportToPlayer(player)
-            if self.Library then self.Library:Notify({ Title = "Teleporte", Content = "Fui até " .. player.Name, Type = "success" }) end
-        end)
-
-        self.PlayerButtons[player] = entry
-    end
-    self.PlayerListFrame.CanvasSize = UDim2.new(0, 0, 0, #Players:GetPlayers() * 34 + 10)
-end
-
-function NoctraServerManager:Init(Library, Tab)
-    self.Library = Library
-    self:BuildUI(Tab)
-    self:Log("INIT", "—", "Server Manager inicializado")
-    return self
-end
-
-function NoctraServerManager:Destroy()
-    for _, conn in ipairs(self.Connections) do pcall(function() conn:Disconnect() end) end
-    self.Connections = {}
-    self.PlayerButtons = {}
-    self.ActionLog = {}
-    self.IsFrozen = {}
-end
-
---// ============================================================
---// PARTE 5: LOADER FINAL E INICIALIZAÇÃO DO HUB
---// ============================================================
-
---// Inicializa os Managers
-NoctraThemeManager:Init(LocalPlayer)
-NoctraThemeManager:SetLibrary(NoctraLib)
-NoctraSaveManager:SetLibrary(NoctraLib)
-NoctraSaveManager:BuildFolderTree()
-
---// Vincula os Managers à Library
-NoctraLib.ThemeManager = NoctraThemeManager
-NoctraLib.SaveManager = NoctraSaveManager
-
---// Cria a janela principal
-local Window = NoctraLib:MakeWindow({
-    Name = "NoBreath",
-    SubName = "v1.0 | NoctraLib",
-    Logo = "rbxassetid://102326100327209",
-    ToggleKey = Enum.KeyCode.RightShift,
-    Size = UDim2.new(0, 650, 0, 420),
-})
-
---// ============================================================
---// ABA 1: PRINCIPAL
---// ============================================================
-local MainTab = NoctraLib:MakeTab({
-    Name = "Principal",
-    Icon = "rbxassetid://10734924532",
-})
-
-MainTab:AddSection({ Name = "Combate" })
-
-MainTab:AddToggle({
-    Name = "Auto Farm",
-    Flag = "AutoFarm",
-    Default = false,
-    Callback = function(state)
-        print("[NoBreath] AutoFarm:", state)
-        if state then
-            NoctraLib:Notify({ Title = "Auto Farm", Content = "Ativado", Type = "success" })
-        else
-            NoctraLib:Notify({ Title = "Auto Farm", Content = "Desativado", Type = "info" })
-        end
-    end,
-})
-
-MainTab:AddToggle({
-    Name = "Auto Dodge",
-    Flag = "AutoDodge",
-    Default = false,
-    Callback = function(state) print("[NoBreath] AutoDodge:", state) end,
-})
-
-MainTab:AddSlider({
-    Name = "Velocidade",
-    Min = 16, Max = 250, Default = 50,
-    Flag = "Speed",
-    Callback = function(value)
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Humanoid") then char.Humanoid.WalkSpeed = value end
-    end,
-})
-
-MainTab:AddButton({
-    Text = "Ativar LoopKick",
-    Func = function()
-        NoctraLib:Notify({ Title = "LoopKick", Content = "Função ativada com sucesso.", Type = "success" })
-        print("[NoBreath] LoopKick ativado!")
-    end,
-})
-
-MainTab:AddButton({
-    Text = "Reset Character",
-    Func = function()
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.Health = 0
-        end
-    end,
-})
-
-MainTab:AddSection({ Name = "Visual" })
-
-MainTab:AddDropdown({
-    Name = "Modo de Câmera",
-    Values = { "Padrão", "Primeira Pessoa", "Visão Superior" },
-    Default = "Padrão",
-    Flag = "CameraMode",
-    Callback = function(value) print("[NoBreath] Câmera:", value) end,
-})
-
-MainTab:AddTextbox({
-    Name = "Mensagem de Chat",
-    Default = "",
-    Flag = "ChatMessage",
-    Callback = function(text) print("[NoBreath] Mensagem:", text) end,
-})
-
-MainTab:AddColorPicker({
-    Name = "Cor do ESP",
-    Default = Color3.fromRGB(255, 255, 255),
-    Flag = "ESPColor",
-    Callback = function(color) print("[NoBreath] Cor do ESP:", color) end,
-})
-
---// ============================================================
---// ABA 2: CONFIGS (SAVE MANAGER)
---// ============================================================
-local ConfigTab = NoctraLib:MakeTab({
-    Name = "Configs",
-    Icon = "rbxassetid://10734924532",
-})
-
-local ConfigBox = NoctraSaveManager:BuildConfigSection(ConfigTab, "folder-cog")
-
---// ============================================================
---// ABA 3: TEMAS (THEME MANAGER)
---// ============================================================
-local ThemeTab = NoctraLib:MakeTab({
-    Name = "Temas",
-    Icon = "rbxassetid://10734924532",
-})
-
-local ThemeSection = ThemeTab:AddSection({ Name = "Temas Embutidos" })
-local themeNames = NoctraThemeManager:GetBuiltInThemes()
-local themeDropdown = ThemeTab:AddDropdown({
-    Name = "Selecionar Tema",
-    Values = themeNames,
-    Default = "Noctra",
-    Flag = "ThemeManager_ThemeList",
-    Callback = function(value)
-        NoctraThemeManager:ApplyTheme(value)
-        NoctraLib:Notify({ Title = "Tema", Content = "Tema aplicado: " .. value, Type = "success" })
-    end,
-})
-ThemeTab:AddButton({
-    Text = "Salvar Tema Atual",
-    Func = function()
-        local themeName = "MeuTema_" .. os.time()
-        local success, err = NoctraThemeManager:SaveCustomTheme(themeName)
-        if success then
-            NoctraLib:Notify({ Title = "Tema Salvo", Content = themeName, Type = "success" })
-        else
-            NoctraLib:Notify({ Title = "Erro", Content = tostring(err), Type = "error" })
-        end
-    end,
-})
-ThemeTab:AddButton({
-    Text = "Definir como Padrão",
-    Func = function()
-        local success = NoctraThemeManager:SaveDefaultTheme(themeDropdown.Value)
-        if success then
-            NoctraLib:Notify({ Title = "Tema Padrão", Content = themeDropdown.Value, Type = "success" })
-        end
-    end,
-})
-
---// ============================================================
---// ABA 4: SERVIDOR (SERVER MANAGER)
---// ============================================================
-local ServerTab = NoctraLib:MakeTab({
-    Name = "Servidor",
-    Icon = "rbxassetid://10734924532",
-})
-
-NoctraServerManager:Init(NoctraLib, ServerTab)
-
---// ============================================================
---// WATERMARK E SEARCH BAR
---// ============================================================
-local function CreateWatermark()
-    local wmFrame = Create("Frame", {
-        Name = "Watermark",
-        Size = UDim2.new(0, 200, 0, 28),
-        Position = UDim2.new(0, 15, 0, 15),
-        BackgroundColor3 = NoctraLib.Scheme.Main,
-        BackgroundTransparency = 0.3,
-        Parent = NoctraLib.ScreenGui,
-    }, { AddCorner(wmFrame, 6), AddStroke(wmFrame, 1.5, NoctraLib.Scheme.Stroke) })
-
-    local wmText = Create("TextLabel", {
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Text = "", Font = Enum.Font.RobotoBold, TextSize = 12,
-        TextColor3 = NoctraLib.Scheme.Text, TextXAlignment = Enum.TextXAlignment.Center,
-    })
-
-    local fps, ping = 0, 0
-    local frameCounter, lastTick = 0, tick()
-
-    local rsConnection = RunService.RenderStepped:Connect(function()
-        frameCounter += 1
-        if tick() - lastTick >= 1 then
-            fps = frameCounter
-            frameCounter = 0
-            lastTick = tick()
-            local network = game:GetService("Stats").Network
-            ping = math.floor(network.ServerStatsItem["Data Ping"]:GetValue())
-            wmText.Text = string.format("NoBreath | %d fps | %d ms", fps, ping)
-            wmFrame.Size = UDim2.new(0, wmText.TextBounds.X + 24, 0, 28)
-        end
-    end)
-    table.insert(NoctraLib.Connections, rsConnection)
-end
-
-local function CreateSearchBar()
-    local searchHolder = Create("Frame", {
-        Name = "SearchHolder",
-        Size = UDim2.new(0, 200, 0, 30),
-        Position = UDim2.new(1, -220, 0, 60),
-        BackgroundColor3 = NoctraLib.Scheme.Main,
-        BackgroundTransparency = 0.2,
-        Parent = NoctraLib.Window,
-        Visible = true,
-    }, { AddCorner(searchHolder, 6), AddStroke(searchHolder, 1.5, NoctraLib.Scheme.Stroke) })
-
-    local InputBox = Create("TextBox", {
-        Name = "SearchInput",
-        Size = UDim2.new(1, -30, 1, 0),
-        Position = UDim2.new(0, 15, 0, 0),
-        BackgroundTransparency = 1,
-        PlaceholderText = "Pesquisar...",
-        PlaceholderColor3 = NoctraLib.Scheme.TextDark,
-        Text = "",
-        Font = Enum.Font.Roboto,
-        TextSize = 13,
-        TextColor3 = NoctraLib.Scheme.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ClearTextOnFocus = false,
-        Parent = searchHolder,
-    })
-    Create("ImageLabel", {
-        Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(1, -25, 0.5, -7),
-        BackgroundTransparency = 1, Image = "rbxassetid://10734924532", ImageColor3 = NoctraLib.Scheme.TextDark
-    })
-
-    InputBox.Focused:Connect(function() NoctraSound:Play("Type") end)
-    InputBox:GetPropertyChangedSignal("Text"):Connect(function()
-        local query = string.lower(InputBox.Text)
-        for _, obj in pairs(NoctraLib.Options) do
-            if obj.Instance and obj.Instance:IsA("Frame") then
-                local textLabel = obj.Instance:FindFirstChild("Title") or (obj.Instance:FindFirstChild("Content") and obj.Instance.Content:FindFirstChild("Title"))
-                if textLabel then
-                    local match = query == "" or string.find(string.lower(textLabel.Text), query)
-                    obj.Instance.Visible = match
-                end
-            end
-        end
-    end)
-end
-
-CreateWatermark()
-CreateSearchBar()
-
---// ============================================================
---// AUTOLOAD
---// ============================================================
-task.spawn(function()
-    task.wait(0.8)
-    NoctraSaveManager:LoadAutoloadConfig()
+-- ==========================================
+-- CREATE ELEMENTS (Base)
+-- ==========================================
+CreateElement("Corner", function(Scale, Offset)
+    local Corner = Create("UICorner", {CornerRadius = UDim.new(Scale or 0, Offset or 10)})
+    return Corner
 end)
 
---// ============================================================
---// LOG FINAL
---// ============================================================
-print("[NoBreath] NoBreath Hub carregado com sucesso.")
-print("[NoBreath] RightShift para mostrar/esconder.")
-print("[NoBreath] Abas: Principal, Configs, Temas, Servidor.")
+CreateElement("Stroke", function(Color, Thickness, Transparency)
+    local Stroke = Create("UIStroke", {
+        Color = Color or Color3.fromRGB(0, 150, 255),
+        Thickness = Thickness or 1.5,
+        Name = "Stroke",
+        Transparency = Transparency or 0.3
+    })
+    return Stroke
+end)
 
---// ============================================================
---// SALVA REFERÊNCIAS
---// ============================================================
-getgenv().NoctraLoaded = {
-    Window = Window,
-    Library = NoctraLib,
-    ThemeManager = NoctraThemeManager,
-    SaveManager = NoctraSaveManager,
-    ServerManager = NoctraServerManager,
-}
+CreateElement("List", function(Scale, Offset)
+    local List = Create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(Scale or 0, Offset or 0)
+    })
+    return List
+end)
 
-return getgenv().NoctraLoaded
+CreateElement("Padding", function(Bottom, Left, Right, Top)
+    local Padding = Create("UIPadding", {
+        PaddingBottom = UDim.new(0, Bottom or 4),
+        PaddingLeft = UDim.new(0, Left or 4),
+        PaddingRight = UDim.new(0, Right or 4),
+        PaddingTop = UDim.new(0, Top or 4)
+    })
+    return Padding
+end)
+
+CreateElement("TFrame", function()
+    local TFrame = Create("Frame", {BackgroundTransparency = 1})
+    return TFrame
+end)
+
+CreateElement("Frame", function(Color)
+    local Frame = Create("Frame", {
+        BackgroundColor3 = Color or Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0
+    })
+    return Frame
+end)
+
+CreateElement("RoundFrame", function(Color, Scale, Offset)
+    local Frame = Create("Frame", {
+        BackgroundColor3 = Color or Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0
+    }, {
+        Create("UICorner", {CornerRadius = UDim.new(Scale, Offset)})
+    })
+    return Frame
+end)
+
+CreateElement("Button", function()
+    local Button = Create("TextButton", {
+        Text = "",
+        AutoButtonColor = false,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0
+    })
+    return Button
+end)
+
+CreateElement("ScrollFrame", function(Color)
+    local ScrollFrame = Create("ScrollingFrame", {
+        BackgroundTransparency = 1,
+        MidImage = "rbxassetid://7445543667",
+        BottomImage = "rbxassetid://7445543667",
+        TopImage = "rbxassetid://7445543667",
+        ScrollBarImageColor3 = Color,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 0,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+    })
+    return ScrollFrame
+end)
+
+CreateElement("Image", function(ImageID)
+    local ImageNew = Create("ImageLabel", {Image = ImageID, BackgroundTransparency = 1})
+    if GetOrionIcon(ImageID) ~= nil then ImageNew.Image = GetOrionIcon(ImageID) end
+    return ImageNew
+end)
+
+CreateElement("ImageButton", function(ImageID)
+    local Image = Create("ImageButton", {Image = ImageID, BackgroundTransparency = 1})
+    return Image
+end)
+
+CreateElement("Label", function(Text, TextSize, Transparency)
+    local Label = Create("TextLabel", {
+        Text = Text or "",
+        TextColor3 = Color3.fromRGB(240, 240, 240),
+        TextTransparency = Transparency or 0,
+        TextSize = TextSize or 15,
+        Font = Enum.Font.Roboto,
+        RichText = true,
+        BackgroundTransparency = 1,
+        TextXAlignment = Enum.TextXAlignment.Left
+    })
+    return Label
+end)
+
+-- ==========================================
+-- NOTIFICAÇÕES
+-- ==========================================
+local NotificationHolder = SetProps(SetChildren(MakeElement("TFrame"), {
+    SetProps(MakeElement("List"), {
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        SortOrder = Enum.SortOrder.Name,
+        VerticalAlignment = Enum.VerticalAlignment.Bottom,
+        Padding = UDim.new(0, 5),
+    })
+}), {
+    Position = UDim2.new(1, -25, 1, -25),
+    Size = UDim2.new(0, 300, 1, -25),
+    AnchorPoint = Vector2.new(1, 1),
+    Parent = Noctra,
+    Name = "NotificationList"
+})
+
+function NoctraLib:MakeNotification(NotificationConfig)
+    spawn(function()
+        NotificationConfig = NotificationConfig or {}
+        NotificationConfig.Name = NotificationConfig.Name or "Notificação"
+        NotificationConfig.Content = NotificationConfig.Content or "Conteúdo"
+        NotificationConfig.Image = NotificationConfig.Image or "info"
+        NotificationConfig.Time = NotificationConfig.Time or 5
+        NotificationConfig.Color = NotificationConfig.Color or Color3.fromRGB(18, 18, 18)
+        NotificationConfig.TextColor = NotificationConfig.TextColor or Color3.fromRGB(240, 240, 240)
+        NotificationConfig.Sound = NotificationConfig.Sound or "rbxassetid://116841974988859"
+        NotificationConfig.Type = NotificationConfig.Type or "Success"
+        NotificationConfig.SoundVolume = NotificationConfig.SoundVolume or 1
+
+        if NotificationConfig.Sound ~= "" then
+            local sound = Instance.new("Sound")
+            sound.SoundId = NotificationConfig.Sound
+            sound.Parent = game:GetService("Players").LocalPlayer:FindFirstChild("Backpack")
+            sound.Volume = NotificationConfig.SoundVolume
+            sound:Play()
+        end
+
+        if NoctraLib.NotificationSettings.Printing then
+            local Contents = {}
+            local SendContent = ""
+            if string.find(NotificationConfig.Content, "\n") then
+                for _, line in NotificationConfig.Content:split("\n") do
+                    table.insert(Contents, "\n  "..line)
+                end
+                SendContent = table.concat(Contents)
+                print(string.format("\n%s\n%s:%s\n%s\n", string.rep("-", 49), NotificationConfig.Name, SendContent, string.rep("-", 49)))
+            else
+                SendContent = NotificationConfig.Content
+                print(string.format("\n%s\n%s:\n  %s\n%s\n", string.rep("-", 49), NotificationConfig.Name, SendContent, string.rep("-", 49)))
+            end
+        end
+
+        if NoctraLib.NotificationSettings.Enabled == false then return end
+
+        local NotificationParent = SetProps(MakeElement("TFrame"), {
+            Size = UDim2.new(0.9, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Parent = NotificationHolder
+        })
+
+        local NotificationFrame = SetChildren(SetProps(MakeElement("RoundFrame", NotificationConfig.Color, 0, 8), {
+            Parent = NotificationParent,
+            Size = UDim2.new(1, 0, 0, 0),
+            Position = UDim2.new(1, -55, 0, 0),
+            BackgroundTransparency = 0.4,
+            AutomaticSize = Enum.AutomaticSize.Y
+        }), {
+            MakeElement("Padding", 12, 12, 12, 12),
+            SetProps(MakeElement("Image", GetLucideIcon(NotificationConfig.Image)), {
+                Size = UDim2.new(0, 20, 0, 20),
+                Position = UDim2.new(0, 0, 0.5, -9),
+                ImageColor3 = NotificationConfig.TextColor,
+                Name = "Icon",
+                BackgroundTransparency = 1,
+            }),
+            SetProps(MakeElement("Label", NotificationConfig.Name, 15), {
+                Size = UDim2.new(1, -30, 0, 20),
+                Position = UDim2.new(0, 30, 0, -4),
+                Font = Enum.Font.RobotoMedium,
+                TextSize = 15,
+                Name = "Title",
+                BackgroundTransparency = 1,
+                TextColor3 = NotificationConfig.TextColor,
+            }),
+            SetProps(MakeElement("Label", NotificationConfig.Content, 14), {
+                Size = NotificationConfig.Content == "" and UDim2.new(0, 0, 0, 0) or UDim2.new(1, -30, 0, 6),
+                Position = UDim2.new(0, 30, 0, 20),
+                Font = Enum.Font.Roboto,
+                TextSize = 13,
+                Name = "Content",
+                AutomaticSize = Enum.AutomaticSize.Y,
+                TextColor3 = NotificationConfig.TextColor,
+                TextWrapped = true,
+                BackgroundTransparency = 1,
+                Visible = NotificationConfig.Content ~= "" and true or false,
+            })
+        })
+
+        local TimerBar = SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 8), {
+            Size = UDim2.new(1, -35, 0, 2),
+            Position = UDim2.new(0, 30, 0, NotificationFrame.AbsoluteSize.Y - 15),
+            Name = "TimerBar",
+            Parent = NotificationFrame,
+        })
+
+        spawn(function()
+            TweenService:Create(TimerBar, TweenInfo.new(NotificationConfig.Time - 1, Enum.EasingStyle.Linear), {Size = UDim2.new(0, 0, 0, 2)}):Play()
+            wait(NotificationConfig.Time - 1)
+            TweenService:Create(TimerBar, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {Size = UDim2.new(0, 0, 0, 0)}):Play()
+            TweenService:Create(TimerBar, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {Position = UDim2.new(0, 30, 0, 0)}):Play()
+            wait(0.3)
+            TimerBar.Visible = false
+        end)
+        TweenService:Create(NotificationFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {Position = UDim2.new(0, 30, 0, 0)}):Play()
+
+        wait(NotificationConfig.Time - 0.88)
+        TweenService:Create(NotificationFrame, TweenInfo.new(3, Enum.EasingStyle.Quint), {BackgroundTransparency = 1}):Play()
+        if NotificationFrame.Icon then TweenService:Create(NotificationFrame.Icon, TweenInfo.new(3, Enum.EasingStyle.Quint), {ImageTransparency = 1}):Play() end
+        TweenService:Create(NotificationFrame.Title, TweenInfo.new(3, Enum.EasingStyle.Quint), {TextTransparency = 1}):Play()
+        TweenService:Create(NotificationFrame.Content, TweenInfo.new(3, Enum.EasingStyle.Quint), {TextTransparency = 1}):Play()
+        wait(0.05)
+
+        NotificationFrame:TweenPosition(UDim2.new(1, 60, 0, 0),'In','Quint',0.8,true)
+        wait(0.85)
+        NotificationParent:Destroy()
+    end)
+end
+
+function NoctraLib:SetNotifyingState(Config)
+    NoctraLib.NotificationSettings.Enabled = Config.Enabled
+    NoctraLib.NotificationSettings.Printing = Config.Printing
+end
+
+-- ==========================================
+-- CRIAÇÃO DA JANELA
+-- ==========================================
+function NoctraLib:MakeWindow(WindowConfig)
+    -- Config
+    local Val = {
+        FirstTab = true,
+        Minimized = false,
+        UIHidden = false,
+        Tab = "",
+        TabholderSize = UDim2.new(0, 120, 0, 200)
+    }
+
+    WindowConfig = WindowConfig or {}
+    WindowConfig.Name = WindowConfig.Name or "NoctraLib"
+    WindowConfig.SubName = WindowConfig.SubName or ""
+    WindowConfig.Size = WindowConfig.Size or UDim2.fromOffset(600, 400)
+    WindowConfig.MinSize = WindowConfig.MinSize or UDim2.fromOffset(400, 200)
+    WindowConfig.MaxSize = WindowConfig.MaxSize or UDim2.fromOffset(4000, 2000)
+    WindowConfig.IntroEnabled = WindowConfig.IntroEnabled or false
+    WindowConfig.IntroText = WindowConfig.IntroText or "NoctraLib"
+    WindowConfig.ShowIcon = WindowConfig.ShowIcon or false
+    WindowConfig.Icon = GetLucideIcon(WindowConfig.Icon) or ""
+    WindowConfig.IntroIcon = GetLucideIcon(WindowConfig.IntroIcon) or ""
+    WindowConfig.Transparency = WindowConfig.Transparency or 0.05
+    WindowConfig.ToggleUIKey = WindowConfig.ToggleUIKey or Enum.KeyCode.Tab
+    WindowConfig.SearchBar = WindowConfig.SearchBar or false
+    WindowConfig.NewUI = WindowConfig.NewUI or false
+    WindowConfig.BackgroundURL = WindowConfig.BackgroundURL or ""
+    WindowConfig.BackgroundTransparency = tonumber(WindowConfig.BackgroundTransparency or 0.2)
+    WindowConfig.WatermarkConfig = WindowConfig.WatermarkConfig or {}
+    WindowConfig.WatermarkConfig.Enabled = WindowConfig.WatermarkConfig.Enabled or false
+    WindowConfig.WatermarkConfig.Visible = WindowConfig.WatermarkConfig.Visible or false
+    WindowConfig.WatermarkConfig.ShowFPS = WindowConfig.WatermarkConfig.ShowFPS or false
+    WindowConfig.WatermarkConfig.ShowPing = WindowConfig.WatermarkConfig.ShowPing or false
+    WindowConfig.WatermarkConfig.ShowName = WindowConfig.WatermarkConfig.ShowName or false
+    WindowConfig.WatermarkConfig.ShowClockTime = WindowConfig.WatermarkConfig.ShowClockTime or false
+    WindowConfig.WatermarkConfig.Icon = GetLucideIcon(WindowConfig.WatermarkConfig.Icon) or ""
+    WindowConfig.FreeMouse = WindowConfig.FreeMouse or false
+    WindowConfig.LogoIcon = WindowConfig.LogoIcon or ""
+
+    NoctraLib.BackgroundURL = WindowConfig.BackgroundURL
+    NoctraLib.BackgroundTransparency = WindowConfig.BackgroundTransparency
+
+    -- Elements
+    local TabHolder = AddThemeObject(SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 255, 255)), {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        Name = "TabHolder",
+    }), {
+        MakeElement("List"),
+        MakeElement("Padding", 8, 0, 0, 8)
+    }), "Divider")
+
+    AddConnection(TabHolder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+        TabHolder.CanvasSize = UDim2.new(0, 0, 0, TabHolder.UIListLayout.AbsoluteContentSize.Y + 16)
+    end)
+
+    local CloseBtn = SetChildren(SetProps(MakeElement("Button"), {
+        Size = UDim2.new(0.5, 0, 1, 0),
+        Position = UDim2.new(0.5, 0, 0, 0),
+        BackgroundTransparency = 1
+    }), {
+        AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://102326100327209"), {
+            Position = UDim2.new(0, 9, 0, 6),
+            Size = UDim2.new(0, 18, 0, 18),
+        }), "Text")
+    })
+
+    local MinimizeBtn = SetChildren(SetProps(MakeElement("Button"), {
+        Size = UDim2.new(0.5, 0, 1, 0),
+        BackgroundTransparency = 1
+    }), {
+        AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072719338"), {
+            Position = UDim2.new(0, 9, 0, 6),
+            Size = UDim2.new(0, 18, 0, 18),
+            Name = "Ico"
+        }), "Text")
+    })
+
+    local DragPoint = SetProps(MakeElement("TFrame"), {
+        Size = UDim2.new(1, 0, 0, 50),
+        BackgroundTransparency = 1
+    })
+
+    local ResizePoint = SetProps(MakeElement("RoundFrame", Color3.fromRGB(18, 18, 18), 0, 10), {
+        Size = UDim2.new(0, 20, 1, 10),
+        Position = UDim2.new(1, 0, 0, 0),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundTransparency = 1,
+        Name = "DragMainWindowResize"
+    })
+
+    local ResizePoint2 = SetProps(MakeElement("RoundFrame", Color3.fromRGB(18, 18, 18), 0, 10), {
+        Size = UDim2.new(1, 10, 0, 20),
+        Position = UDim2.new(1, 0, 1, 0),
+        AnchorPoint = Vector2.new(1, 0.5),
+        BackgroundTransparency = 1,
+        Name = "DragMainWindowResize2"
+    })
+
+    local WindowStuff = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(18, 18, 18), 0, 12), {
+        Size = UDim2.new(0, 120, 0, 0),
+        Position = UDim2.new(0, 0, 0, 55),
+        BackgroundTransparency = WindowConfig.Transparency,
+        Name = "WindowStuff",
+        Active = true,
+    }), {
+        SetProps(MakeElement("Frame"), {
+            Size = UDim2.new(1, 0, 0, 10),
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 1,
+        }),
+        SetProps(MakeElement("Frame"), {
+            Size = UDim2.new(0, 10, 1, 0),
+            Position = UDim2.new(1, -10, 0, 0),
+            BackgroundTransparency = 1,
+        }),
+        SetProps(MakeElement("Frame"), {
+            Size = UDim2.new(0, 1, 1, 0),
+            Position = UDim2.new(1, -1, 0, 0),
+            BackgroundTransparency = 1,
+        }),
+        SetChildren(SetProps(MakeElement("Image", ""), {
+            Size = UDim2.new(1, 0, 1, 0),
+            ScaleType = Enum.ScaleType.Crop,
+            Name = "BackgroundImage",
+            Image = WindowConfig.BackgroundURL,
+            ZIndex = -10,
+            Visible = false
+        }), {MakeElement("Corner", 0, 12)}),
+        TabHolder,
+        AddThemeObject(MakeElement("Stroke"), "Stroke")
+    }), "Main")
+
+    local ResizeTabHolderPoint = SetProps(MakeElement("RoundFrame", Color3.fromRGB(18, 18, 18), 0, 10), {
+        Size = UDim2.new(0, 15, 1, 0),
+        Position = UDim2.new(1, -5, 1, 0),
+        AnchorPoint = Vector2.new(0, 1),
+        BackgroundTransparency = 1,
+        Parent = WindowStuff,
+        Name = "DragTabHolderResize",
+        Active = true
+    })
+
+    local ResizeTabHolderPoint2 = SetProps(MakeElement("RoundFrame", Color3.fromRGB(18, 18, 18), 0, 10), {
+        Size = UDim2.new(1, 0, 0, 15),
+        Position = UDim2.new(0, 0, 1, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        Parent = WindowStuff,
+        Name = "DragTabHolderResize2",
+        Active = true
+    })
+
+    local WindowName = AddThemeObject(SetProps(MakeElement("Label", WindowConfig.Name, 14), {
+        Size = UDim2.new(1, -30, 2, 0),
+        Position = UDim2.new(0, 25, 0, -45),
+        Font = Enum.Font.RobotoBlack,
+        TextSize = 20,
+        Name = "WindowName",
+        Text = WindowConfig.Name,
+    }), "Text")
+
+    local WindowSubName = AddThemeObject(SetProps(MakeElement("Label", WindowConfig.SubName, 14), {
+        Size = UDim2.new(1, -WindowName.TextBounds.X - 200, 1, 0),
+        Position = UDim2.new(0, WindowConfig.ShowIcon and WindowName.TextBounds.X + 60 or WindowName.TextBounds.X + 35, 0, -19),
+        Font = Enum.Font.RobotoMedium,
+        TextSize = 14,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Name = "WindowSubName",
+        Text = WindowConfig.SubName
+    }), "TextDark")
+
+    local WindowTopBarLine = AddThemeObject(SetProps(MakeElement("Frame"), {
+        Size = UDim2.new(1, 0, 0, 1),
+        Position = UDim2.new(0, 0, 1, -1),
+        BackgroundTransparency = 1,
+    }), "Divider")
+
+    local MainWindow = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(18, 18, 18), 0, 12), {
+        Parent = Noctra,
+        Position = UDim2.new(0.5, -WindowConfig.Size.X.Offset / 2, 0.5, -WindowConfig.Size.Y.Offset / 2),
+        Size = WindowConfig.Size,
+        BackgroundTransparency = WindowConfig.Transparency,
+        Name = "MainWindow",
+        Visible = false,
+        ClipsDescendants = false,
+    }), {
+        SetChildren(AddThemeObject(SetProps(MakeElement("RoundFrame", Color3.fromRGB(18, 18, 18), 0, 12), {
+            Size = UDim2.new(1, 0, 1, -55),
+            Position = UDim2.new(0, 0, 0, 55),
+            Name = "FakeMainWindowNew",
+            BackgroundTransparency = 1,
+            ClipsDescendants = true,
+            Active = true,
+        }), "Main"), {
+            SetChildren(SetProps(MakeElement("Image", ""), {
+                Size = UDim2.new(1, 0, 1, 0),
+                ScaleType = Enum.ScaleType.Crop,
+                Name = "BackgroundImage",
+                Image = WindowConfig.BackgroundURL,
+                ZIndex = -10,
+                Visible = false
+            }), {MakeElement("Corner", 0, 12)}),
+            ResizePoint,
+            ResizePoint2
+        }),
+        AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(18, 18, 18), 0, 12), {
+            Size = UDim2.new(1, 0, 0, 50),
+            Name = "TopBar",
+            BackgroundTransparency = 1,
+            ClipsDescendants = false,
+            Active = true,
+        }), {
+            WindowTopBarLine,
+            AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(18, 18, 18), 0, WindowConfig.NewUI and 12 or 8), {
+                Size = UDim2.new(0, 70, 0, 30),
+                Position = UDim2.new(1, -90, 0, 10),
+                BackgroundTransparency = 1,
+                Name = "ButtonsFrame",
+            }), {
+                AddThemeObject(MakeElement("Stroke"), "Stroke"),
+                AddThemeObject(SetProps(MakeElement("Frame"), {
+                    Size = UDim2.new(0, 1, 1, 0),
+                    Position = UDim2.new(0.5, 0, 0, 0),
+                    BackgroundTransparency = 0.5,
+                }), "Divider"),
+                CloseBtn,
+                MinimizeBtn
+            }), "Elements"),
+            AddThemeObject(SetChildren(SetProps(MakeElement("TFrame", Color3.fromRGB(18, 18, 18), 0, 8), {
+                Size = UDim2.new(1, 0, 1, 0),
+                Position = UDim2.new(0, 0, 0, 20),
+                Name = "WindowNames",
+            }), {
+                WindowName,
+                WindowSubName,
+            }), "Main"),
+            SetChildren(SetProps(MakeElement("Image", ""), {
+                Size = UDim2.new(1, 0, 0, 50),
+                ScaleType = Enum.ScaleType.Crop,
+                Position = UDim2.new(0, 0, 0, 0),
+                Name = "BackgroundImage",
+                Image = WindowConfig.BackgroundURL,
+                ZIndex = -10
+            }), {MakeElement("Corner", 0, 12)})
+        }), "Main"),
+        DragPoint,
+        WindowStuff,
+        AddThemeObject(MakeElement("Stroke"), "Stroke")
+    }), "Main")
+
+    -- Logo no canto superior direito
+    if WindowConfig.LogoIcon ~= "" then
+        local LogoSrc = GetLucideIcon(WindowConfig.LogoIcon) or WindowConfig.LogoIcon
+        local WindowLogo = SetProps(MakeElement("Image", LogoSrc), {
+            Size = UDim2.new(0, 22, 0, 22),
+            Position = UDim2.new(1, -120, 0, 14),
+            Name = "WindowLogo",
+            ImageColor3 = Color3.fromRGB(255, 255, 255),
+            BackgroundTransparency = 1,
+            ZIndex = 5,
+        })
+        WindowLogo.Parent = MainWindow.TopBar
+    end
+
+    local FreeMouseButton = Create("TextButton", {
+        Name = "FreeMouseBtn",
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
+        Text = "",
+        Modal = true,
+        Parent = Noctra,
+        Visible = false
+    })
+
+    local mouseUnlocked = false
+
+    local function SetMouseUnlocked(state)
+        mouseUnlocked = state
+        UserInputService.MouseIconEnabled = state
+        FreeMouseButton.Visible = state
+        if state then
+            task.spawn(function()
+                while mouseUnlocked and NoctraLib:IsRunning() do
+                    UserInputService.MouseIconEnabled = true
+                    FreeMouseButton.Visible = true
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end
+
+    if WindowConfig.FreeMouse then
+        SetMouseUnlocked(true)
+    end
+
+    -- Local window functions
+    if WindowConfig.ShowIcon then
+        WindowName.Position = UDim2.new(0, 50, 0, -45)
+        local WindowIcon = SetProps(MakeElement("Image", WindowConfig.Icon), {Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 25, 0, 17.5), Name = "WindowIcon"})
+        WindowIcon.Parent = MainWindow.TopBar
+    end
+
+    if WindowConfig.SearchBar then
+        local SearchBox = Create("TextBox", {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            PlaceholderColor3 = Color3.fromRGB(210,210,210),
+            PlaceholderText = (type(WindowConfig.SearchBar) == "table" and WindowConfig.SearchBar.Default) or "Search",
+            Font = Enum.Font.RobotoMedium,
+            TextWrapped = true,
+            Text = '',
+            TextXAlignment = Enum.TextXAlignment.Center,
+            TextSize = 14,
+            ClearTextOnFocus = (type(WindowConfig.SearchBar) == "table" and WindowConfig.SearchBar.ClearTextOnFocus ~= nil and WindowConfig.SearchBar.ClearTextOnFocus) or true
+        })
+
+        local TextboxActual = AddThemeObject(SearchBox, "Text")
+        local SearchBar = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 1, 6), {
+            Parent = MainWindow.TopBar,
+            Size = UDim2.new(0, 100, 0, 30),
+            Position = UDim2.new(1, -100, 0, 25),
+            AnchorPoint = Vector2.new(1, 0.5),
+            BackgroundTransparency = 1,
+            Name = "SearchBar",
+        }), {
+            AddThemeObject(MakeElement("Stroke"), "Stroke"),
+            TextboxActual
+        }), "Main")
+
+        SearchBar.UICorner.CornerRadius = UDim.new(0, 6)
+
+        local function GetCurrentTab()
+            local Containers = {}
+            for _, Container in next, MainWindow:GetChildren() do
+                if Container.Name == "ItemContainerLeft" or Container.Name == "ItemContainerRight" then
+                    table.insert(Containers, Container)
+                end
+            end
+            for _, Container in next, Containers do
+                if Container.Visible then
+                    return Container:GetAttribute("tab")
+                end
+            end
+            return ""
+        end
+
+        local function ChangeTab(Name)
+            pcall(function()
+                local Tab = TabHolder:FindFirstChild(Name)
+                local Containers = {}
+                for _, Container in next, MainWindow:GetChildren() do
+                    if Container.Name == "ItemContainerLeft" or Container.Name == "ItemContainerRight" then
+                        table.insert(Containers, Container)
+                    end
+                end
+                for _, Container in next, Containers do
+                    if Container:GetAttribute("tab") == Name then
+                        Container.Visible = true
+                        task.spawn(function()
+                            local Tab = TabHolder:FindFirstChild(Container:GetAttribute("tab"))
+                            TweenService:Create(Tab.Ico, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = 0}):Play()
+                            TweenService:Create(Tab.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+                            Tab.Title.Font = Enum.Font.RobotoBlack
+                        end)
+                    else
+                        Container.Visible = false
+                        task.spawn(function()
+                            local Tab = TabHolder:FindFirstChild(Container:GetAttribute("tab"))
+                            TweenService:Create(Tab.Ico, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = 0.4}):Play()
+                            TweenService:Create(Tab.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
+                            Tab.Title.Font = Enum.Font.RobotoMedium
+                        end)
+                    end
+                end
+            end)
+        end
+
+        local function SearchHandle()
+            pcall(function()
+                local CurrentTab = GetCurrentTab()
+                local Text = string.lower(SearchBox.Text)
+                if not TabHolder or not TabHolder:IsA("GuiObject") then return end
+
+                for _, container in MainWindow:GetChildren() do
+                    if container.Name == "ItemContainerLeft" or container.Name == "ItemContainerRight" then
+                        for _2, frame in container:GetChildren() do
+                            if not frame:IsA("Frame") then continue end
+                            for _3, btn in frame.Holder:GetChildren() do
+                                if not btn:IsA("Frame") then continue end
+                                local content = btn:FindFirstChild("Content") or btn:FindFirstChild("F"):FindFirstChild("Content")
+                                if Text == "" or string.find(string.lower(content.Text), Text) then
+                                    local tab = container:GetAttribute("tab")
+                                    if Text ~= "" then ChangeTab(tab) end
+                                    if content.Parent.Name ~= "F" then
+                                        content.Parent.Visible = true
+                                    else
+                                        content.Parent.Parent.Visible = true
+                                    end
+                                else
+                                    if Text ~= "" then
+                                        if content.Parent.Name ~= "F" then
+                                            content.Parent.Visible = false
+                                        else
+                                            content.Parent.Parent.Visible = false
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+
+        AddConnection(TextboxActual:GetPropertyChangedSignal("Text"), SearchHandle)
+    end
+
+    local WatermarkFrame, WatermarkText, WatermarkIcon, WatermarkStroke, WatermarkConnection
+    if WindowConfig.WatermarkConfig.Enabled then
+        local FrameTimer = tick()
+        local FrameCounter = 0
+        local FPS = 60
+
+        WatermarkFrame = AddThemeObject(Create("Frame", {
+            Parent = Noctra,
+            Position = UDim2.new(0, 15, 0, 15),
+            Size = UDim2.new(0, 200, 0, 28),
+            BackgroundTransparency = WindowConfig.Transparency,
+            BorderSizePixel = 0,
+            Name = "Watermark",
+            ZIndex = 100,
+            Active = true,
+            Visible = WindowConfig.WatermarkConfig.Visible
+        }, {
+            Create("UICorner", {CornerRadius = UDim.new(0, 8)}),
+            Create("ImageLabel", {
+                Size = UDim2.new(1, 0, 1, 0),
+                ScaleType = Enum.ScaleType.Crop,
+                Name = "BackgroundImage",
+                Image = WindowConfig.BackgroundURL,
+                ZIndex = -10,
+                Visible = false
+            }, {Create("UICorner", {CornerRadius = UDim.new(0, 8)})})
+        }), "Main")
+
+        WatermarkStroke = AddThemeObject(Create("UIStroke", {
+            Parent = WatermarkFrame,
+            Thickness = 1,
+            Transparency = WindowConfig.WatermarkConfig.Transparency,
+        }), "Stroke")
+
+        local IconOffset = 0
+        if WindowConfig.WatermarkConfig.Icon then
+            IconOffset = 22
+            WatermarkIcon = AddThemeObject(Create("ImageLabel", {
+                Parent = WatermarkFrame,
+                Size = UDim2.new(0, 16, 0, 16),
+                Position = UDim2.new(0, 8, 0.5, -8),
+                BackgroundTransparency = 1,
+                Image = WindowConfig.WatermarkConfig.Icon or "",
+                Name = "WatermarkIcon",
+                ZIndex = 101,
+            }), "Text")
+        end
+
+        WatermarkText = AddThemeObject(Create("TextLabel", {
+            Parent = WatermarkFrame,
+            Size = UDim2.new(1, -IconOffset - 16, 1, 0),
+            Position = UDim2.new(0, IconOffset + 8, 0, 0),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.RobotoBlack,
+            TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            Name = "WatermarkText",
+            ZIndex = 101,
+            Text = "",
+        }), "Text")
+
+        local parts = {}
+        local function UpdateWatermark()
+            parts = {}
+            if WindowConfig.WatermarkConfig.ShowName then parts[#parts+1] = WindowConfig.Name end
+            if WindowConfig.WatermarkConfig.ShowFPS then parts[#parts+1] = tostring(math.floor(FPS)) .. " fps" end
+            if WindowConfig.WatermarkConfig.ShowPing then
+                local ping = 0
+                ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+                parts[#parts+1] = ping .. " ms"
+            end
+            if WindowConfig.WatermarkConfig.ShowClockTime then parts[#parts+1] = os.date("%H:%M:%S") end
+
+            WatermarkText.Text = table.concat(parts, " | ")
+            WatermarkFrame.Size = UDim2.new(0, WatermarkText.TextBounds.X + IconOffset + 16, 0, 28)
+        end
+        UpdateWatermark()
+
+        WatermarkConnection = RunService.RenderStepped:Connect(function()
+            FrameCounter = FrameCounter + 1
+            if (tick() - FrameTimer) >= 1 then
+                FPS = FrameCounter
+                FrameTimer = tick()
+                FrameCounter = 0
+                UpdateWatermark()
+            end
+        end)
+
+        NoctraLib.Connections[#NoctraLib.Connections+1] = WatermarkConnection
+    end
+
+    local function AddDraggingFunctionality(DragPoint, Main)
+        pcall(function()
+            local Dragging, DragInput, MousePos, FramePos = false
+            DragPoint.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    Dragging = true
+                    MousePos = Input.Position
+                    FramePos = Main.Position
+                    Input.Changed:Connect(function()
+                        if Input.UserInputState == Enum.UserInputState.End then Dragging = false end
+                    end)
+                end
+            end)
+            DragPoint.InputChanged:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then DragInput = Input end
+            end)
+            UserInputService.InputChanged:Connect(function(Input)
+                if Input == DragInput and Dragging then
+                    local Delta = Input.Position - MousePos
+                    TweenService:Create(Main, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2.new(FramePos.X.Scale,FramePos.X.Offset + Delta.X, FramePos.Y.Scale, FramePos.Y.Offset + Delta.Y)}):Play()
+                end
+            end)
+        end)
+    end
+
+    local function AddResizingFunctionality(ResizePoint, Main, IsTabholder)
+        pcall(function()
+            local Dragging, DragInput, MousePos, FrameSize = false
+            local Clamp, Sizing = false, false
+
+            ResizePoint.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    Dragging = true
+                    MousePos = Input.Position
+                    FrameSize = Main.Size
+                    Input.Changed:Connect(function()
+                        if Input.UserInputState == Enum.UserInputState.End then
+                            Dragging = false
+                            Sizing = false
+                            Clamp = false
+                        end
+                    end)
+                end
+            end)
+            ResizePoint.InputChanged:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then DragInput = Input end
+            end)
+            UserInputService.InputChanged:Connect(function(Input)
+                if Input == DragInput and Dragging then
+                    local Delta = Input.Position - MousePos
+                    local size
+                    if IsTabholder then
+                        if WindowConfig.NewUI then
+                            size = UDim2.new(
+                                0, math.clamp(FrameSize.X.Offset + Delta.X, 10, (MainWindow.Size.X.Offset / 2) + 50),
+                                0, math.clamp(FrameSize.Y.Offset + Delta.Y, 45, 9999)
+                            )
+                        else
+                            size = UDim2.new(
+                                0, math.clamp(FrameSize.X.Offset + Delta.X, 10, (MainWindow.Size.X.Offset / 2) + 50),
+                                FrameSize.Y.Scale, FrameSize.Y.Offset
+                            )
+                        end
+                        Val.TabholderSize = size
+                    else
+                        size = UDim2.new(
+                            FrameSize.X.Scale, math.clamp(FrameSize.X.Offset + Delta.X, WindowConfig.MinSize.X.Offset, WindowConfig.MaxSize.X.Offset),
+                            FrameSize.Y.Scale, math.clamp(FrameSize.Y.Offset + Delta.Y, WindowConfig.MinSize.Y.Offset, WindowConfig.MaxSize.Y.Offset)
+                        )
+                    end
+                    TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = size}):Play()
+                    WindowConfig.Size = size
+                end
+            end)
+        end)
+    end
+
+    AddDraggingFunctionality(DragPoint, MainWindow)
+    AddDraggingFunctionality(WatermarkFrame, WatermarkFrame)
+    AddResizingFunctionality(ResizePoint, MainWindow, false)
+    AddResizingFunctionality(ResizePoint2, MainWindow, false)
+    AddResizingFunctionality(ResizeTabHolderPoint, WindowStuff, true)
+    AddResizingFunctionality(ResizeTabHolderPoint2, WindowStuff, true)
+
+    -- Local window connections
+    AddConnection(CloseBtn.MouseButton1Up, function()
+        MainWindow.Visible = false
+        UIHidden = true
+        NoctraLib:MakeNotification({
+            Name = "Interface Hidden",
+            Content = "Tap "..tostring(WindowConfig.ToggleUIKey):split(".")[3].." to reopen the interface",
+            Time = 3,
+            Color = game.CoreGui.NoctraLib:GetChildren()[2].BackgroundColor3,
+            TextColor = game.CoreGui.NoctraLib:GetChildren()[2].TopBar.WindowName.TextColor3,
+            Image = "activity"
+        })
+        if WindowConfig.FreeMouse then
+            SetMouseUnlocked(false)
+        end
+    end)
+
+    AddConnection(UserInputService.InputBegan, function(Input)
+        if Input.KeyCode == WindowConfig.ToggleUIKey then
+            UIHidden = not UIHidden
+            MainWindow.Visible = not UIHidden
+            if WindowConfig.FreeMouse then
+                SetMouseUnlocked(not UIHidden)
+            end
+        end
+    end)
+    AddConnection(WindowName:GetPropertyChangedSignal("TextBounds"), function()
+        WindowSubName.Size = UDim2.new(1, -WindowName.TextBounds.X - 240, 1, 0)
+        WindowSubName.Position = UDim2.new(0, WindowConfig.ShowIcon and WindowName.TextBounds.X + 60 or WindowName.TextBounds.X + 35, 0, -19)
+    end)
+
+    AddConnection(MainWindow:GetPropertyChangedSignal("Size"), function()
+        if WindowConfig.NewUI then
+            MainWindow.TopBar.BackgroundImage.Size = UDim2.new(1, 0, 0, 50)
+        else
+            MainWindow.TopBar.BackgroundImage.Size = MainWindow.Size
+            WindowStuff.Size = UDim2.new(0, Val.TabholderSize.X.Offset, 0, MainWindow.Size.Y.Offset - 50)
+        end
+    end)
+
+    AddConnection(CloseBtn.MouseButton1Up, function()
+        MainWindow.Visible = false
+        Val.UIHidden = true
+        NoctraLib:MakeNotification({
+            Name = "Interface Hidden",
+            Content = "Tap "..tostring(WindowConfig.ToggleUIKey):split(".")[3].." to reopen the interface",
+            Time = 3,
+            Color = game.CoreGui.NoctraLib:GetChildren()[2].BackgroundColor3,
+            TextColor = game.CoreGui.NoctraLib:GetChildren()[2].TopBar.WindowNames.WindowName.TextColor3,
+            Image = "activity"
+        })
+    end)
+
+    AddConnection(UserInputService.InputBegan, function(Input)
+        if Input.KeyCode == WindowConfig.ToggleUIKey then
+            Val.UIHidden = not Val.UIHidden
+            MainWindow.Visible = not Val.UIHidden
+        end
+    end)
+
+    AddConnection(MainWindow.UICorner:GetPropertyChangedSignal("CornerRadius"), function()
+        MainWindow.TopBar.BackgroundImage.UICorner.CornerRadius = MainWindow.UICorner.CornerRadius
+        MainWindow.FakeMainWindowNew.BackgroundImage.UICorner.CornerRadius = MainWindow.UICorner.CornerRadius
+        WindowStuff.BackgroundImage.UICorner.CornerRadius = MainWindow.UICorner.CornerRadius
+        WatermarkFrame.BackgroundImage.UICorner.CornerRadius = MainWindow.UICorner.CornerRadius
+        if WindowConfig.WatermarkConfig.Enabled then
+            WatermarkFrame.UICorner.CornerRadius = MainWindow.UICorner.CornerRadius
+        end
+    end)
+
+    local VisibleContainers = {}
+    AddConnection(MinimizeBtn.MouseButton1Up, function()
+        if Val.Minimized then
+            TweenService:Create(MainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = WindowConfig.Size}):Play()
+            spawn(function()
+                WindowSubName.Visible = true
+                TweenService:Create(WindowSubName, TweenInfo.new(0.1), {TextTransparency = 0}):Play()
+                if MainWindow.TopBar:FindFirstChild("SearchBar") then
+                    MainWindow.TopBar.SearchBar.Visible = true
+                    TweenService:Create(MainWindow.TopBar.SearchBar.TextBox, TweenInfo.new(0.1), {TextTransparency = 0}):Play()
+                    TweenService:Create(MainWindow.TopBar.SearchBar.Stroke, TweenInfo.new(0.1), {Transparency = 0.35}):Play()
+                end
+            end)
+            ResizePoint.Visible = true
+            ResizeTabHolderPoint.Visible = true
+            MinimizeBtn.Ico.Image = "rbxassetid://7072719338"
+            WindowSubName.Visible = true
+            wait(.02)
+            MainWindow.ClipsDescendants = false
+            WindowStuff.Visible = true
+            WindowTopBarLine.Visible = true
+            for i, v in pairs(VisibleContainers) do
+                v.Visible = true
+            end
+            VisibleContainers = {}
+        else
+            MainWindow.ClipsDescendants = true
+            WindowTopBarLine.Visible = false
+            MinimizeBtn.Ico.Image = "rbxassetid://7072720870"
+
+            if not WindowConfig.ShowIcon then
+                TweenService:Create(MainWindow, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, WindowName.TextBounds.X + 140, 0, 50)}):Play()
+            else
+                TweenService:Create(MainWindow, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, WindowName.TextBounds.X + 160, 0, 50)}):Play()
+            end
+            spawn(function()
+                TweenService:Create(WindowSubName, TweenInfo.new(0.1), {TextTransparency = 1}):Play()
+                if MainWindow.TopBar:FindFirstChild("SearchBar") then
+                    TweenService:Create(MainWindow.TopBar.SearchBar.TextBox, TweenInfo.new(0.1), {TextTransparency = 1}):Play()
+                    TweenService:Create(MainWindow.TopBar.SearchBar.Stroke, TweenInfo.new(0.1), {Transparency = 1}):Play()
+                end
+                wait(0.1)
+                WindowSubName.Visible = false
+                if MainWindow.TopBar:FindFirstChild("SearchBar") then MainWindow.TopBar.SearchBar.Visible = false end
+            end)
+            ResizePoint.Visible = false
+            ResizeTabHolderPoint.Visible = false
+            wait(0.1)
+            WindowStuff.Visible = false
+            for i, Container in pairs(MainWindow:GetChildren()) do
+                if Container.Name == "ItemContainerLeft" or Container.Name == "ItemContainerRight" then
+                    if Container.Visible then
+                        Container.Visible = false
+                        table.insert(VisibleContainers, Container)
+                    end
+                end
+            end
+        end
+        Val.Minimized = not Val.Minimized
+    end)
+
+    local function LoadSequence()
+        MainWindow.Visible = false
+        local LoadSequenceLogo = SetProps(MakeElement("Image", WindowConfig.IntroIcon), {
+            Parent = Noctra,
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.new(0.5, 0, 0.4, 0),
+            Size = UDim2.new(0, 28, 0, 28),
+            ImageColor3 = Color3.fromRGB(255, 255, 255),
+            ImageTransparency = 1
+        })
+
+        local LoadSequenceText = SetProps(MakeElement("Label", WindowConfig.IntroText, 14), {
+            Parent = Noctra,
+            Size = UDim2.new(1, 0, 1, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.new(0.5, 19, 0.5, 0),
+            TextXAlignment = Enum.TextXAlignment.Center,
+            Font = Enum.Font.RobotoMedium,
+            TextTransparency = 1
+        })
+
+        TweenService:Create(LoadSequenceLogo, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {ImageTransparency = 0, Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
+        wait(0.8)
+        TweenService:Create(LoadSequenceLogo, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, -(LoadSequenceText.TextBounds.X/2), 0.5, 0)}):Play()
+        wait(0.3)
+        TweenService:Create(LoadSequenceText, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+        wait(2)
+        TweenService:Create(LoadSequenceText, TweenInfo.new(.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1}):Play()
+        MainWindow.Visible = true
+        LoadSequenceLogo:Destroy()
+        LoadSequenceText:Destroy()
+    end
+
+    if WindowConfig.IntroEnabled then LoadSequence() end
+
+    -- Set functions
+    local TabFunction = {}
+
+    function TabFunction:SetSize(Size)
+        MainWindow.Size = Size
+    end
+
+    function TabFunction:SetIconColor(Color)
+        MainWindow.TopBar.WindowIcon.ImageColor3 = Color
+        for i, Tab in next, TabHolder:GetChildren() do
+            if Tab:IsA("TextButton") then
+                Tab.Ico.ImageColor3 = Color
+            end
+        end
+    end
+
+    function TabFunction:SetColor(Color)
+        MainWindow.FakeMainWindowNew.BackgroundColor3 = Color
+        MainWindow.TopBar.BackgroundColor3 = Color
+        MainWindow.BackgroundColor3 = Color
+        WindowStuff.BackgroundColor3 = Color
+        if WindowConfig.WatermarkConfig.Enabled then
+            WatermarkFrame.BackgroundColor3 = Color
+        end
+    end
+
+    function TabFunction:SetStrokeColor(Color)
+        MainWindow.TopBar.ButtonsFrame.Stroke.Color = Color
+        MainWindow.TopBar.ButtonsFrame.Frame.BackgroundColor3 = Color
+        if MainWindow.TopBar:FindFirstChild("SearchBar") then
+            MainWindow.TopBar.SearchBar.Stroke.Color = Color
+        end
+        if WindowConfig.WatermarkConfig.Enabled then
+            WatermarkStroke.Color = Color
+        end
+    end
+
+    function TabFunction:SetStrokeTransparency(Transparency)
+        MainWindow.TopBar.ButtonsFrame.Stroke.Transparency = Transparency
+        MainWindow.TopBar.ButtonsFrame.Frame.BackgroundTransparency = Transparency
+        if MainWindow.TopBar:FindFirstChild("SearchBar") then
+            MainWindow.TopBar.SearchBar.Stroke.Transparency = Transparency
+        end
+    end
+
+    function TabFunction:SetTextColor(Color)
+        local SubNameColor = Color3.fromRGB(Color.R * 180, Color.G * 180, Color.B * 180)
+        MainWindow.TopBar.WindowNames.WindowName.TextColor3 = Color
+        MainWindow.TopBar.WindowNames.WindowSubName.TextColor3 = SubNameColor
+        for i, Tab in next, TabHolder:GetChildren() do
+            if Tab:IsA("TextButton") then
+                Tab.Title.TextColor3 = Color
+            end
+        end
+        for i, Container in next, MainWindow:GetChildren() do
+            if Container.Name == "ItemContainerLeft" or Container.Name == "ItemContainerRight" then
+                local frame = Container:FindFirstChildOfClass("Frame")
+                local label = frame and frame:FindFirstChildOfClass("TextLabel")
+                if frame and label then
+                    label.TextColor3 = Color
+                end
+            end
+        end
+        if WindowConfig.WatermarkConfig.Enabled then
+            WatermarkText.TextColor3 = Color
+        end
+    end
+
+    function TabFunction:SetTextTransparency(Transparency)
+        MainWindow.TopBar.WindowNames.WindowName.TextTransparency = Transparency
+        MainWindow.TopBar.WindowNames.WindowSubName.TextTransparency = Transparency
+        for i, Tab in next, TabHolder:GetChildren() do
+            if Tab:IsA("TextButton") then
+                Tab.Title.TextTransparency = Transparency
+            end
+        end
+        for i, Container in next, MainWindow:GetChildren() do
+            if Container.Name == "ItemContainerLeft" or Container.Name == "ItemContainerRight" then
+                local frame = Container:FindFirstChildOfClass("Frame")
+                local label = frame and frame:FindFirstChildOfClass("TextLabel")
+                if frame and label then
+                    label.TextTransparency = Transparency
+                end
+            end
+        end
+        if WindowConfig.WatermarkConfig.Enabled then
+            WatermarkText.TextTransparency = Transparency
+        end
+    end
+
+    function TabFunction:SetTransparency(Transparency)
+        if WindowConfig.NewUI then
+            MainWindow.FakeMainWindowNew.Transparency = Transparency
+            MainWindow.TopBar.Transparency = Transparency
+            WindowStuff.Transparency = Transparency
+            WindowConfig.Transparency = Transparency
+        else
+            MainWindow.BackgroundTransparency = Transparency
+            WindowConfig.Transparency = Transparency
+        end
+        if WindowConfig.WatermarkConfig.Enabled then
+            WatermarkFrame.BackgroundTransparency = Transparency
+        end
+    end
+
+    function TabFunction:SetToggleKey(Key)
+        local KeyCode = Key or Enum.KeyCode.RightShift
+        WindowConfig.ToggleUIKey = Enum.KeyCode[KeyCode]
+    end
+
+    function TabFunction:DestroyElement(Flag)
+        if NoctraLib.Flags[Flag] ~= nil then
+            NoctraLib.Flags[Flag]:Destroy()
+        end
+    end
+
+    function TabFunction:SetThemeColor(Theme, Element, ThemeColor)
+        NoctraLib.Themes[Theme][Element] = ThemeColor
+    end
+
+    function TabFunction:SetThemeTransparency(Theme, Element, Transparency)
+        NoctraLib.Themes[Theme][Element].Transparency = Transparency
+    end
+
+    function TabFunction:NewUI(Bool)
+        task.spawn(function()
+            WindowConfig.NewUI = Bool
+            if Bool then
+                MainWindow.Transparency = 1
+                MainWindow.FakeMainWindowNew.Transparency = WindowConfig.Transparency
+                MainWindow.FakeMainWindowNew.Position = UDim2.new(0, WindowStuff.AbsoluteSize.X, 0, 55)
+                MainWindow.FakeMainWindowNew.Size = UDim2.new(1, -WindowStuff.AbsoluteSize.X, 1, -55)
+                if NoctraLib.BackgroundConfig.EnabledBackground then
+                    MainWindow.FakeMainWindowNew.BackgroundImage.Visible = true
+                end
+                MainWindow.TopBar.Transparency = WindowConfig.Transparency
+                MainWindow.TopBar.ClipsDescendants = true
+                MainWindow.TopBar.BackgroundImage.Size = UDim2.new(1, 0, 0, 50)
+                MainWindow.TopBar.BackgroundImage.UICorner.CornerRadius = UDim.new(0, 25)
+                Val.TabholderSize = UDim2.new(0, Val.TabholderSize.X.Offset - 15, 0, MainWindow.Size.Y.Offset - 50)
+                WindowStuff.BackgroundTransparency = WindowConfig.Transparency
+                WindowStuff.Size = Val.TabholderSize
+                WindowStuff.Position = UDim2.new(0, 0, 0, 55)
+                if NoctraLib.BackgroundConfig.EnabledBackground then
+                    WindowStuff.BackgroundImage.Visible = true
+                end
+                local width = (MainWindow.AbsoluteSize.X - TabHolder.Parent.AbsoluteSize.X + 5) / 2
+                for i, v in pairs(MainWindow:GetChildren()) do
+                    if v.Name == "ItemContainerLeft" then
+                        v.Size = UDim2.new(0, width + (WindowConfig.NewUI and 0 or 5), 1, WindowConfig.NewUI and -80 or -60)
+                        v.Position = UDim2.new(0, TabHolder.Parent.AbsoluteSize.X + (WindowConfig.NewUI and 5 or -5), 0, WindowConfig.NewUI and 65 or 50)
+                    elseif v.Name == "ItemContainerRight" then
+                        v.Size = UDim2.new(0, width + (WindowConfig.NewUI and 0 or 5), 1, WindowConfig.NewUI and -80 or -60)
+                        v.Position = UDim2.new(0, TabHolder.Parent.AbsoluteSize.X + width - (WindowConfig.NewUI and 5 or 10), 0, WindowConfig.NewUI and 65 or 50)
+                    end
+                end
+                for i, v in MainWindow:GetDescendants() do
+                    if not v:IsA("UICorner") then continue end
+                    local pName = v.Parent.Name
+                    local ppName = v.Parent.Parent.Name
+                    if pName == "ButtonsFrame" then
+                        v.CornerRadius = UDim.new(0, 12)
+                    elseif pName == "Label" or pName == "Paragraph" or pName == "Button" or pName == "Toggle" or pName == "Bind" or pName == "Dropdown" or pName == "Slider" or pName == "Colorpicker" or pName == "Textbox" then
+                        v.CornerRadius = UDim.new(0, 8)
+                    elseif ppName == "Label" or ppName == "Paragraph" or pName == "Button" or ppName == "Toggle" or ppName == "Bind" or ppName == "Dropdown" or ppName == "Slider" or pName == "Colorpicker" or ppName == "Textbox" then
+                        v.CornerRadius = UDim.new(0, 6)
+                    end
+                    task.wait()
+                end
+            else
+                MainWindow.Transparency = WindowConfig.Transparency
+                MainWindow.FakeMainWindowNew.Transparency = 1
+                MainWindow.FakeMainWindowNew.BackgroundImage.Visible = false
+                MainWindow.TopBar.Transparency = 1
+                MainWindow.TopBar.ClipsDescendants = false
+                MainWindow.TopBar.BackgroundImage.Size = MainWindow.Size
+                MainWindow.TopBar.BackgroundImage.UICorner.CornerRadius = UDim.new(0, 12)
+                Val.TabholderSize = UDim2.new(0, Val.TabholderSize.X.Offset + 15, 0, MainWindow.Size.Y.Offset - 50)
+                WindowStuff.BackgroundTransparency = 1
+                WindowStuff.Size = Val.TabholderSize
+                WindowStuff.Position = UDim2.new(0, 0, 0, 50)
+                WindowStuff.BackgroundImage.Visible = false
+                local width = (MainWindow.AbsoluteSize.X - TabHolder.Parent.AbsoluteSize.X + 15) / 2
+                for i, v in pairs(MainWindow:GetChildren()) do
+                    if v.Name == "ItemContainerLeft" then
+                        v.Size = UDim2.new(0, width, 1, -50)
+                        v.Position = UDim2.new(0, TabHolder.Parent.AbsoluteSize.X - 5, 0, 50)
+                    elseif v.Name == "ItemContainerRight" then
+                        v.Size = UDim2.new(0, width, 1, -50)
+                        v.Position = UDim2.new(0, TabHolder.Parent.AbsoluteSize.X + width - 15, 0, 50)
+                    end
+                end
+                for i, v in MainWindow:GetDescendants() do
+                    if not v:IsA("UICorner") then continue end
+                    local pName = v.Parent.Name
+                    local ppName = v.Parent.Parent.Name
+                    if pName == "ButtonsFrame" then
+                        v.CornerRadius = UDim.new(0, 8)
+                    elseif pName == "Label" or pName == "Paragraph" or pName == "Button" or pName == "Toggle" or pName == "Bind" or pName == "Dropdown" or pName == "Slider" or pName == "Colorpicker" or pName == "Textbox" then
+                        v.CornerRadius = UDim.new(0, 6)
+                    elseif ppName == "Label" or ppName == "Paragraph" or pName == "Button" or ppName == "Toggle" or ppName == "Bind" or ppName == "Dropdown" or ppName == "Slider" or pName == "Colorpicker" or ppName == "Textbox" then
+                        v.CornerRadius = UDim.new(0, 6)
+                    end
+                    task.wait()
+                end
+            end
+        end)
+    end
+
+    function TabFunction:SetMainCorners(Offset)
+        MainWindow.FakeMainWindowNew.UICorner.CornerRadius = UDim.new(0, Offset)
+        MainWindow.TopBar.UICorner.CornerRadius = UDim.new(0, Offset)
+        WindowStuff.UICorner.CornerRadius = UDim.new(0, Offset)
+        MainWindow.UICorner.CornerRadius = UDim.new(0, Offset)
+    end
+
+    function TabFunction:SetElementsCorners(Offset)
+        task.spawn(function()
+            for i, v in MainWindow:GetDescendants() do
+                if not v:IsA("UICorner") then continue end
+                local pName = v.Parent.Name
+                local ppName = v.Parent.Parent.Name
+                if pName == "ButtonsFrame" then
+                    v.CornerRadius = UDim.new(0, Offset)
+                elseif pName == "Label" or pName == "Paragraph" or pName == "Button" or pName == "Toggle" or pName == "Bind" or pName == "Dropdown" or pName == "Slider" or pName == "Colorpicker" or pName == "Textbox" then
+                    v.CornerRadius = UDim.new(0, Offset)
+                elseif ppName == "Label" or ppName == "Paragraph" or pName == "Button" or ppName == "Toggle" or ppName == "Bind" or ppName == "Dropdown" or pName == "Slider" or pName == "Colorpicker" or ppName == "Textbox" then
+                    v.CornerRadius = UDim.new(0, Offset - 2)
+                end
+                task.wait()
+            end
+        end)
+    end
+
+    function TabFunction:SetBackground(URL)
+        WindowConfig.BackgroundURL = URL
+        MainWindow.FakeMainWindowNew.BackgroundImage.Image = WindowConfig.BackgroundURL
+        MainWindow.TopBar.BackgroundImage.Image = WindowConfig.BackgroundURL
+        WindowStuff.BackgroundImage.Image = WindowConfig.BackgroundURL
+        if WindowConfig.WatermarkConfig.Enabled then
+            WatermarkFrame.BackgroundImage.Image = WindowConfig.BackgroundURL
+        end
+    end
+
+    function TabFunction:SetBackgroundTransparency(Transparency)
+        WindowConfig.BackgroundTransparency = tonumber(Transparency)
+        MainWindow.FakeMainWindowNew.BackgroundImage.ImageTransparency = WindowConfig.BackgroundTransparency
+        MainWindow.TopBar.BackgroundImage.ImageTransparency = WindowConfig.BackgroundTransparency
+        WindowStuff.BackgroundImage.ImageTransparency = WindowConfig.BackgroundTransparency
+        if WindowConfig.WatermarkConfig.Enabled then
+            WatermarkFrame.BackgroundImage.ImageTransparency = WindowConfig.BackgroundTransparency
+        end
+    end
+
+    function TabFunction:SetBackgroundVisibility(Bool)
+        if WindowConfig.NewUI then
+            MainWindow.FakeMainWindowNew.BackgroundImage.Visible = Bool
+            WindowStuff.BackgroundImage.Visible = Bool
+        else
+            MainWindow.FakeMainWindowNew.BackgroundImage.Visible = false
+        end
+        if WindowConfig.WatermarkConfig.Enabled then
+            WatermarkFrame.BackgroundImage.Visible = Bool
+        end
+        MainWindow.TopBar.BackgroundImage.Visible = Bool
+    end
+
+    TabFunction:NewUI(WindowConfig.NewUI)
+
+    function TabFunction:SetWatermarkVisibility(Bool)
+        if WatermarkFrame then
+            WatermarkFrame.Visible = Bool
+            WindowConfig.WatermarkConfig.Enabled = Bool
+        end
+    end
+
+    function TabFunction:SetWatermarkText(Text)
+        if WatermarkText then
+            WatermarkText.Text = tostring(Text)
+            local textWidth = WatermarkText.TextBounds.X + (WatermarkIcon and 38 or 20)
+            WatermarkFrame.Size = UDim2.new(0, textWidth, 0, 28)
+        end
+    end
+
+    function TabFunction:SetWatermarkColor(Color)
+        if WatermarkFrame then
+            WatermarkFrame.BackgroundColor3 = Color
+        end
+    end
+
+    function TabFunction:SetWatermarkTextColor(Color)
+        if WatermarkText then
+            WatermarkText.TextColor3 = Color
+        end
+    end
+
+    function TabFunction:SetWatermarkIconColor(Color)
+        if WatermarkIcon then
+            WatermarkIcon.ImageColor3 = Color
+        end
+    end
+
+    function TabFunction:SetWatermarkTransparency(Transparency)
+        if WatermarkFrame then
+            WatermarkFrame.BackgroundTransparency = Transparency
+        end
+        if WatermarkStroke then
+            WatermarkStroke.Transparency = Transparency
+        end
+    end
+
+    function TabFunction:SetWatermarkPosition(Position)
+        if WatermarkFrame then
+            WatermarkFrame.Position = Position
+        end
+    end
+
+    function TabFunction:DestroyWatermark()
+        if WatermarkConnection then
+            WatermarkConnection:Disconnect()
+            WatermarkConnection = nil
+        end
+        if WatermarkFrame then
+            WatermarkFrame:Destroy()
+            WatermarkFrame = nil
+        end
+    end
+
+    -- Make tab
+    function TabFunction:MakeTab(TabConfig)
+        TabConfig = TabConfig or {}
+        TabConfig.Name = TabConfig.Name or "Tab"
+        TabConfig.Icon = TabConfig.Icon or ""
+        TabConfig.PremiumOnly = TabConfig.PremiumOnly or false
+
+        Val.Tab = TabConfig.Name
+
+        local TabFrame = SetChildren(SetProps(MakeElement("Button"), {
+            Size = UDim2.new(1, 0, 0, 30),
+            Parent = TabHolder,
+            TextWrapped = false,
+            Name = Val.Tab,
+        }), {
+            AddThemeObject(SetProps(MakeElement("Image", GetLucideIcon(TabConfig.Icon)), {
+                AnchorPoint = Vector2.new(0, 0.5),
+                Size = UDim2.new(0, 18, 0, 18),
+                Position = UDim2.new(0, 10, 0.5, 0),
+                ImageTransparency = 0.4,
+                Name = "Ico"
+            }), "Text"),
+            AddThemeObject(SetProps(MakeElement("Label", TabConfig.Name, 14), {
+                Size = UDim2.new(1, -35, 1, 0),
+                Position = UDim2.new(0, 35, 0, 0),
+                Font = Enum.Font.RobotoMedium,
+                TextTransparency = 0.4,
+                TextWrapped = false,
+                Name = "Title"
+            }), "Text")
+        })
+
+        local ContainerLeft = AddThemeObject(SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 255, 255)), {
+            Size = UDim2.new(0.5, -40, 1, 0),
+            Position = UDim2.new(0, 95, 0, WindowConfig.NewUI and 65 or 50),
+            Parent = MainWindow,
+            Visible = false,
+            Name = "ItemContainerLeft"
+        }), {
+            MakeElement("List", 0, 6),
+            MakeElement("Padding", 15, 10, 10, 15)
+        }), "Divider")
+
+        ContainerLeft:SetAttribute("tab", Val.Tab)
+
+        local ContainerRight = AddThemeObject(SetChildren(SetProps(MakeElement("ScrollFrame", Color3.fromRGB(255, 255, 255)), {
+            Size = UDim2.new(0.5, -40, 1, 0),
+            Position = UDim2.new(0.5, 40, 0, WindowConfig.NewUI and 65 or 50),
+            Parent = MainWindow,
+            Visible = false,
+            Name = "ItemContainerRight"
+        }), {
+            MakeElement("List", 0, 6),
+            MakeElement("Padding", 15, 10, 10, 15)
+        }), "Divider")
+
+        ContainerRight:SetAttribute("tab", Val.Tab)
+
+        AddConnection(ContainerLeft.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+            ContainerLeft.CanvasSize = UDim2.new(0, 0, 0, ContainerLeft.UIListLayout.AbsoluteContentSize.Y - 5)
+        end)
+        AddConnection(ContainerRight.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+            ContainerRight.CanvasSize = UDim2.new(0, 0, 0, ContainerRight.UIListLayout.AbsoluteContentSize.Y - 5)
+        end)
+
+        if GetOrionIcon(TabConfig.Icon) ~= nil then TabFrame.Ico.Image = GetOrionIcon(TabConfig.Icon) end
+
+        if Val.FirstTab then
+            Val.FirstTab = false
+            TabFrame.Ico.ImageTransparency = 0
+            TabFrame.Title.TextTransparency = 0
+            TabFrame.Title.Font = Enum.Font.RobotoBlack
+            ContainerLeft.Visible = true
+            ContainerRight.Visible = true
+        end
+
+        AddConnection(TabFrame.MouseButton1Click, function()
+            for _, Tab in next, TabHolder:GetChildren() do
+                if Tab:IsA("TextButton") then
+                    Tab.Title.Font = Enum.Font.RobotoMedium
+                    TweenService:Create(Tab.Ico, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = 0.4}):Play()
+                    TweenService:Create(Tab.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0.4}):Play()
+                end
+            end
+            for _, Container in next, MainWindow:GetChildren() do
+                if Container.Name == "ItemContainerLeft" or Container.Name == "ItemContainerRight" then
+                    Container.Visible = false
+                end
+            end
+            TweenService:Create(TabFrame.Ico, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = 0}):Play()
+            TweenService:Create(TabFrame.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+            TabFrame.Title.Font = Enum.Font.RobotoBlack
+            ContainerLeft.Visible = true
+            ContainerRight.Visible = true
+        end)
+
+        do
+            local width
+            local function SetSizes()
+                width = (MainWindow.AbsoluteSize.X - TabHolder.Parent.AbsoluteSize.X + 5) / 2
+                ContainerLeft.Size = UDim2.new(0, width + (WindowConfig.NewUI and 0 or 5), 1, WindowConfig.NewUI and -80 or -60)
+                ContainerRight.Size = UDim2.new(0, width + (WindowConfig.NewUI and 0 or 5), 1, WindowConfig.NewUI and -80 or -60)
+                ContainerLeft.Position = UDim2.new(0, TabHolder.Parent.AbsoluteSize.X + (WindowConfig.NewUI and 5 or -5), 0, WindowConfig.NewUI and 65 or 50)
+                ContainerRight.Position = UDim2.new(0, TabHolder.Parent.AbsoluteSize.X + width - (WindowConfig.NewUI and 5 or 10), 0, WindowConfig.NewUI and 65 or 50)
+                MainWindow.FakeMainWindowNew.Position = UDim2.new(0, TabHolder.Parent.AbsoluteSize.X + 5, 0, 55)
+                MainWindow.FakeMainWindowNew.Size = UDim2.new(1, -TabHolder.Parent.AbsoluteSize.X - 5, 1, -55)
+            end; SetSizes()
+
+            AddConnection(TabHolder.Parent:GetPropertyChangedSignal("AbsoluteSize"), SetSizes)
+            AddConnection(MainWindow:GetPropertyChangedSignal("AbsoluteSize"), SetSizes)
+        end
+
+        local function GetElements(ItemParent)
+            local ElementFunction = {Type = "ElementFunction"}
+
+            local function AddElements(ItemParent2)
+                function ItemParent2:AddLabel(Text)
+                    Text = Text or "Label"
+
+                    local LabelFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(1, 0, 0, 30),
+                        BackgroundTransparency = WindowConfig.ElementsTransparency,
+                        Parent = ItemParent,
+                        Name = "Label",
+                    }), {
+                        AddThemeObject(SetProps(MakeElement("Label", Text, 14), {
+                            Size = UDim2.new(1, -12, 1, 0),
+                            Position = UDim2.new(0, 12, 0, 0),
+                            Font = Enum.Font.RobotoMedium,
+                            Name = "Content",
+                            TextWrapped = true,
+                        }), "Text"),
+                        AddThemeObject(MakeElement("Stroke"), "Stroke")
+                    }), "Elements")
+
+                    AddConnection(LabelFrame.Content:GetPropertyChangedSignal("Text"), function()
+                        LabelFrame.Content.Size = UDim2.new(1, -24, 0, LabelFrame.Content.TextBounds.Y)
+                        LabelFrame.Content.Position = UDim2.new(0, 12, 0, 6)
+                        LabelFrame.Size = UDim2.new(1, 0, 0, LabelFrame.Content.TextBounds.Y + 12)
+                    end)
+
+                    local LabelFunction = {}
+                    function LabelFunction:Set(ToChange) LabelFrame.Content.Text = ToChange end
+                    function LabelFunction:SetColor(Color) LabelFrame.BackgroundColor3 = Color end
+                    function LabelFunction:SetStrokeColor(Color) LabelFrame.Stroke.Color = Color end
+                    function LabelFunction:SetStrokeTransparency(Transparency) LabelFrame.Stroke.Transparency = Transparency end
+                    function LabelFunction:SetTextColor(Color) LabelFrame.Content.TextColor3 = Color end
+                    function LabelFunction:SetTextTransparency(Transparency) LabelFrame.Content.TextTransparency = Transparency end
+                    function LabelFunction:SetTransparency(Transparency) LabelFrame.BackgroundTransparency = Transparency end
+
+                    table.insert(NoctraLib.UIElements, LabelFunction)
+                    return LabelFunction
+                end
+
+                function ItemParent2:AddParagraph(Text, Content)
+                    Text = Text or "Text"
+                    Content = Content or "Content"
+
+                    local ParagraphFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(1, 0, 0, 30),
+                        BackgroundTransparency = WindowConfig.ElementsTransparency,
+                        Parent = ItemParent,
+                        Name = "Paragraph"
+                    }), {
+                        AddThemeObject(SetProps(MakeElement("Label", Text, 14), {
+                            Size = UDim2.new(1, -12, 0, 14),
+                            Position = UDim2.new(0, 12, 0, 10),
+                            Font = Enum.Font.RobotoMedium,
+                            Name = "Title"
+                        }), "Text"),
+                        AddThemeObject(SetProps(MakeElement("Label", "", 13), {
+                            Size = UDim2.new(1, -24, 0, 0),
+                            Position = UDim2.new(0, 12, 0, 26),
+                            Font = Enum.Font.Roboto,
+                            Name = "Content",
+                            TextWrapped = true
+                        }), "TextDark"),
+                        AddThemeObject(MakeElement("Stroke"), "Stroke")
+                    }), "Elements")
+
+                    AddConnection(ParagraphFrame.Content:GetPropertyChangedSignal("Text"), function()
+                        ParagraphFrame.Content.Size = UDim2.new(1, -24, 0, ParagraphFrame.Content.TextBounds.Y)
+                        ParagraphFrame.Size = UDim2.new(1, 0, 0, ParagraphFrame.Content.TextBounds.Y + 35)
+                    end)
+
+                    task.wait(.01)
+                    ParagraphFrame.Content.Text = Content
+
+                    local ParagraphFunction = {}
+                    function ParagraphFunction:Set(ToChange) ParagraphFrame.Content.Text = ToChange end
+                    function ParagraphFunction:SetColor(Color) ParagraphFrame.BackgroundColor3 = Color end
+                    function ParagraphFunction:SetStrokeColor(Color) ParagraphFrame.Stroke.Color = Color end
+                    function ParagraphFunction:SetStrokeTransparency(Transparency) ParagraphFrame.Stroke.Transparency = Transparency end
+                    function ParagraphFunction:SetTextColor(Color) ParagraphFrame.Content.TextColor3 = Color end
+                    function ParagraphFunction:SetTextTransparency(Transparency) ParagraphFrame.Content.TextTransparency = Transparency end
+                    function ParagraphFunction:SetTransparency(Transparency) ParagraphFrame.BackgroundTransparency = Transparency end
+
+                    table.insert(NoctraLib.UIElements, ParagraphFunction)
+                    return ParagraphFunction
+                end
+
+                function ItemParent2:AddButton(ButtonConfig)
+                    ButtonConfig = ButtonConfig or {}
+                    ButtonConfig.Name = ButtonConfig.Name or "Button"
+                    ButtonConfig.Callback = ButtonConfig.Callback or function() end
+                    ButtonConfig.Icon = ButtonConfig.Icon or "rbxassetid://3944703587"
+                    ButtonConfig.DoubleTap = ButtonConfig.DoubleTap or false
+                    ButtonConfig.TapDelay = ButtonConfig.TapDelay or 0.5
+                    ButtonConfig.Settings = ButtonConfig.Settings or false
+
+                    local Button, Tap, OldButtonName = {}, 0, ButtonConfig.Name
+
+                    local Click = SetProps(MakeElement("Button"), {Size = UDim2.new(1, 0, 1, 0)})
+
+                    local ButtonFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(1, 0, 0, 33),
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Parent = ItemParent,
+                        BackgroundTransparency = WindowConfig.ElementsTransparency,
+                        Name = "Button",
+                    }), {
+                        AddThemeObject(SetProps(MakeElement("Label", ButtonConfig.Name, 14), {
+                            Size = UDim2.new(1, -40, 1, 0),
+                            Position = UDim2.new(0, 12, 0, 0),
+                            Font = Enum.Font.RobotoMedium,
+                            Name = "Content",
+                            TextWrapped = true,
+                            BackgroundTransparency = 1,
+                        }), "Text"),
+                        AddThemeObject(SetProps(MakeElement("Image", ButtonConfig.Icon), {
+                            Size = UDim2.new(0, 20, 0, 20),
+                            Position = UDim2.new(1, -30, 0, 7),
+                            BackgroundTransparency = 1,
+                            Name = "Image"
+                        }), "TextDark"),
+                        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+                        Click
+                    }), "Elements")
+
+                    local SettingsInput = false
+                    local SettingsSectionButton
+                    if ButtonConfig.Settings then
+                        ButtonFrame.Image.Position = UDim2.new(1, -48, 0, 19)
+                        local Toggled = false
+                        SettingsSectionButton = SetProps(MakeElement("ScrollFrame"), {
+                            Parent = ButtonFrame,
+                            Position = UDim2.new(0, 0, 0, 38),
+                            Size = UDim2.new(1, 0, 1, -38),
+                            ClipsDescendants = true
+                        })
+                        local SettingsButton = SetProps(MakeElement("Image", "rbxassetid://10734950309"), {
+                            Parent = ButtonFrame,
+                            Size = UDim2.new(0, 24, 0, 24),
+                            Position = UDim2.new(1, -30, 0, 7),
+                            ImageColor3 = Color3.fromRGB(240, 240, 240),
+                            Name = "SettingsIco"
+                        })
+                        AddConnection(SettingsButton.InputBegan, function(Input) SettingsInput = true end)
+                        AddConnection(SettingsButton.InputEnded, function(Input)
+                            SettingsInput = false
+                            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                                Toggled = not Toggled
+                                if Toggled then
+                                    TweenService:Create(ButtonFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 180)}):Play()
+                                else
+                                    TweenService:Create(ButtonFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 38)}):Play()
+                                end
+                            end
+                        end)
+                        AddElements(Button)
+                        for i, v in next, GetElements(SettingsSectionButton) do Button[i] = v end
+                    end
+
+                    function Button:SetColor(Color) ButtonFrame.BackgroundColor3 = Color end
+                    function Button:SetStrokeColor(Color) ButtonFrame.Stroke.Color = Color end
+                    function Button:SetStrokeTransparency(Transparency) ButtonFrame.Stroke.Transparency = Transparency end
+                    function Button:SetTextColor(Color) ButtonFrame.Content.TextColor3 = Color end
+                    function Button:SetTextTransparency(Transparency) ButtonFrame.Content.TextTransparency = Transparency end
+                    function Button:SetTransparency(Transparency) ButtonFrame.BackgroundTransparency = Transparency end
+                    function Button:Set(ButtonText) ButtonFrame.Content.Text = ButtonText end
+
+                    AddConnection(Click.MouseEnter, function()
+                        TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 6
+                            )
+                        }):Play()
+                    end)
+
+                    AddConnection(Click.MouseLeave, function()
+                        TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color
+                        }):Play()
+                    end)
+
+                    AddConnection(Click.MouseButton1Up, function()
+                        TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 6
+                            )
+                        }):Play()
+                        Tap += 1
+                        if Tap == 2 and ButtonConfig.DoubleTap then
+                            ButtonConfig.Callback()
+                        elseif Tap == 1 and ButtonConfig.DoubleTap then
+                            ButtonFrame.Content.Text = "Are you sure?"
+                            task.wait(ButtonConfig.TapDelay)
+                            if Tap == 1 then
+                                Tap = 0
+                                ButtonFrame.Content.Text = OldButtonName
+                            end
+                        elseif not ButtonConfig.DoubleTap then
+                            ButtonConfig.Callback()
+                        end
+                        Tap = 0
+                        ButtonFrame.Content.Text = OldButtonName
+                    end)
+
+                    AddConnection(Click.MouseButton1Down, function()
+                        TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 10,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 10,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 10
+                            )
+                        }):Play()
+                    end)
+
+                    table.insert(NoctraLib.UIElements, Button)
+                    return Button
+                end
+
+                function ItemParent2:AddToggle(ToggleConfig)
+                    ToggleConfig = ToggleConfig or {}
+                    ToggleConfig.Name = ToggleConfig.Name or "Toggle"
+                    ToggleConfig.Default = ToggleConfig.Default or false
+                    ToggleConfig.Callback = ToggleConfig.Callback or function() end
+                    ToggleConfig.Color = ToggleConfig.Color or Color3.fromRGB(28, 28, 28)
+                    ToggleConfig.Flag = ToggleConfig.Flag or nil
+                    ToggleConfig.Binded = ToggleConfig.Binded or false
+                    ToggleConfig.DefaultBind = ToggleConfig.DefaultBind or ""
+                    ToggleConfig.Settings = ToggleConfig.Settings or false
+
+                    local Toggle = {Value = ToggleConfig.Default, Name = ToggleConfig.Name, Type = "Toggle", Binding = false, BindValue = ""}
+                    ElementFunction.Type = "Toggle"
+                    local Click = SetProps(MakeElement("Button"), {Size = UDim2.new(1, 0, 0, 38)})
+
+                    local ToggleBox = SetChildren(SetProps(MakeElement("RoundFrame", ToggleConfig.Color, 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(0, 24, 0, 24),
+                        Position = UDim2.new(1, -24, 0, 19),
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        BackgroundTransparency = 0.7,
+                    }), {
+                        SetProps(MakeElement("Stroke"), {
+                            Color = Color3.fromRGB(200, 200, 200),
+                            Name = "Stroke",
+                            Transparency = 0.35
+                        }),
+                        SetProps(MakeElement("Image", "rbxassetid://3944680095"), {
+                            Size = UDim2.new(0, 20, 0, 20),
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            Position = UDim2.new(0.5, 0, 0.5, 0),
+                            ImageColor3 = Color3.fromRGB(255, 255, 255),
+                            Name = "Ico"
+                        })
+                    })
+
+                    local BindBox
+                    local ClickBind
+                    if ToggleConfig.Binded then
+                        ClickBind = SetProps(MakeElement("Button"), {Size = UDim2.fromScale(1, 1), ZIndex = 2})
+
+                        BindBox = SetChildren(SetProps(MakeElement("RoundFrame", ToggleConfig.Color, 0, WindowConfig.NewUI and 10 or 6), {
+                            Parent = ItemParent,
+                            Size = UDim2.new(0, 24, 0, 24),
+                            Position = not ToggleConfig.Settings and UDim2.new(1, -42, 0, 19) or UDim2.new(1, -65, 0, 19),
+                            AnchorPoint = Vector2.new(1, 0.5),
+                            BackgroundTransparency = WindowConfig.ElementsTransparency,
+                        }), {
+                            SetProps(MakeElement("Stroke"), {
+                                Color = Color3.fromRGB(200, 200, 200),
+                                Transparency = 0.35,
+                                Name = "Stroke"
+                            }),
+                            AddThemeObject(SetProps(MakeElement("Label", ToggleConfig.DefaultBind, 14), {
+                                Size = UDim2.new(1, 0, 1, 0),
+                                Font = Enum.Font.RobotoMedium,
+                                TextXAlignment = Enum.TextXAlignment.Center,
+                                Name = "Value",
+                            }), "Text"),
+                            ClickBind
+                        })
+
+                        AddConnection(ClickBind.InputEnded, function(Input)
+                            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                                if Toggle.Binding then return end
+                                Toggle.Binding = true
+                                BindBox.Value.Text = ""
+                            end
+                        end)
+
+                        AddConnection(UserInputService.InputBegan, function(Input)
+                            if UserInputService:GetFocusedTextBox() then return end
+                            if (Input.KeyCode.Name == Toggle.BindValue or Input.UserInputType.Name == Toggle.BindValue) and not Toggle.Binding then
+                                Toggle:Set(not Toggle.Value)
+                            elseif Toggle.Binding then
+                                local Key
+                                pcall(function() if not CheckKey(BlacklistedKeys, Input.KeyCode) then Key = Input.KeyCode end end)
+                                pcall(function() if CheckKey(WhitelistedMouse, Input.UserInputType) and not Key then Key = Input.UserInputType end end)
+                                if Input.KeyCode == Enum.KeyCode.Backspace then
+                                    Toggle:SetBind("")
+                                    return
+                                end
+                                Key = Key or Toggle.BindValue
+                                Toggle:SetBind(Key)
+                            end
+                        end)
+
+                        AddConnection(BindBox.Value:GetPropertyChangedSignal("Text"), function()
+                            TweenService:Create(BindBox, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, BindBox.Value.TextBounds.X + 16, 0, 24)}):Play()
+                        end)
+
+                        function Toggle:SetBind(Key)
+                            Toggle.Binding = false
+                            Toggle.BindValue = Key or Toggle.BindValue
+                            Toggle.BindValue = Toggle.BindValue.Name or Toggle.BindValue
+                            BindBox.Value.Text = Toggle.BindValue
+                        end
+                        Toggle:SetBind("")
+                    end
+
+                    local ToggleFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(1, 0, 0, 38),
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Parent = ItemParent,
+                        BackgroundTransparency = WindowConfig.ElementsTransparency,
+                        ClipsDescendants = false,
+                        Name = "Toggle",
+                    }), {
+                        AddThemeObject(SetProps(MakeElement("Label", ToggleConfig.Name, 14), {
+                            Size = UDim2.new(1, -50, 0, 0),
+                            Position = UDim2.new(0, 12, 0, 19),
+                            Font = Enum.Font.RobotoMedium,
+                            Name = "Content",
+                            TextWrapped = true,
+                        }), "Text"),
+                        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+                        ToggleBox,
+                        BindBox,
+                        Click
+                    }), "Elements")
+
+                    local SettingsInput = false
+                    local SettingsSectionFrame
+                    if ToggleConfig.Settings then
+                        ToggleBox.Position = UDim2.new(1, -48, 0, 19)
+                        local Toggled = false
+                        local SizeToOpen = 180
+                        local FakeFrame = SetProps(MakeElement("Frame"), {
+                            Parent = ToggleFrame,
+                            Position = UDim2.new(0, 0, 0, 38),
+                            Size = UDim2.new(1, 0, 1, -38),
+                            ClipsDescendants = true,
+                            Name = "FakeSettingsScroll",
+                            BackgroundTransparency = 1
+                        })
+                        SettingsSectionFrame = SetChildren(SetProps(MakeElement("ScrollFrame"), {
+                            Parent = FakeFrame,
+                            Position = UDim2.new(0, 5, 0, 2),
+                            Size = UDim2.new(1, -10, 1, 0),
+                            ClipsDescendants = false,
+                            Name = "SettingsScroll"
+                        }), {MakeElement("List", 0, 6)})
+                        local SettingsButton = SetProps(MakeElement("Image", "rbxassetid://10734950309"), {
+                            Parent = ToggleFrame,
+                            Size = UDim2.new(0, 24, 0, 24),
+                            Position = UDim2.new(1, -30, 0, 7),
+                            ImageColor3 = Color3.fromRGB(240, 240, 240),
+                            Name = "SettingsIco"
+                        })
+                        AddConnection(SettingsSectionFrame.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+                            SettingsSectionFrame.CanvasSize = UDim2.new(1, -10, 0, SettingsSectionFrame.UIListLayout.AbsoluteContentSize.Y + 7)
+                            SizeToOpen = SettingsSectionFrame.UIListLayout.AbsoluteContentSize.Y + 45
+                        end)
+                        AddConnection(SettingsButton.InputBegan, function(Input) SettingsInput = true end)
+                        AddConnection(SettingsButton.InputEnded, function(Input)
+                            SettingsInput = false
+                            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                                Toggled = not Toggled
+                                if Toggled then
+                                    TweenService:Create(ToggleFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, SizeToOpen)}):Play()
+                                else
+                                    TweenService:Create(ToggleFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 38)}):Play()
+                                end
+                            end
+                        end)
+                        AddElements(Toggle)
+                        for i, v in next, GetElements(SettingsSectionFrame) do Toggle[i] = v end
+                    end
+
+                    function Toggle:ChangeVisibility(Bool) ToggleFrame.Visible = Bool end
+
+                    function Toggle:Set(Value)
+                        Toggle.Value = Value
+                        TweenService:Create(ToggleBox, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Toggle.Value and ToggleConfig.Color or NoctraLib.Themes[NoctraLib.SelectedTheme].Divider.Color
+                        }):Play()
+                        TweenService:Create(ToggleBox.Stroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                                Color = Toggle.Value and ToggleConfig.Color or Color3.fromRGB(200, 200, 200)
+                        }):Play()
+                        TweenService:Create(ToggleBox.Ico, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            ImageTransparency = Toggle.Value and 0 or 1, Size = Toggle.Value and UDim2.new(0, 20, 0, 20) or UDim2.new(0, 8, 0, 8)
+                        }):Play()
+                        ToggleConfig.Callback(Toggle.Value)
+                    end
+
+                    function Toggle:SetName(Text) ToggleFrame.Content.Text = Text end
+                    function Toggle:SetColor(Color) ToggleFrame.BackgroundColor3 = Color end
+                    function Toggle:SetTextColor(Color) ToggleFrame.Content.TextColor3 = Color end
+                    function Toggle:SetTextTransparency(Transparency) ToggleFrame.Content.TextTransparency = Transparency end
+                    function Toggle:SetStrokeColor(Color) ToggleFrame.Stroke.Color = Color end
+                    function Toggle:SetStrokeTransparency(Transparency) ToggleFrame.Stroke.Transparency = Transparency end
+                    function Toggle:SetTransparency(Transparency) ToggleFrame.BackgroundTransparency = Transparency end
+
+                    Toggle:Set(Toggle.Value)
+
+                    AddConnection(Click.MouseEnter, function()
+                        TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 6)
+                            }
+                        ):Play()
+                    end)
+                    AddConnection(Click.MouseLeave, function()
+                        TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color
+                        }):Play()
+                    end)
+                    AddConnection(Click.MouseButton1Up, function()
+                        TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 6
+                            )
+                        }):Play()
+                        if not SettingsInput then Toggle:Set(not Toggle.Value) end
+                    end)
+                    AddConnection(Click.MouseButton1Down, function()
+                        TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 10,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 10,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 10
+                            )
+                        }):Play()
+                    end)
+
+                    if ToggleConfig.Flag then NoctraLib.Flags[ToggleConfig.Flag] = Toggle end
+                    table.insert(NoctraLib.UIElements, Toggle)
+                    return Toggle
+                end
+
+                function ItemParent2:AddSlider(SliderConfig)
+                    SliderConfig = SliderConfig or {}
+                    SliderConfig.Name = SliderConfig.Name or "Slider"
+                    SliderConfig.Min = SliderConfig.Min or 0
+                    SliderConfig.Max = SliderConfig.Max or 100
+                    SliderConfig.Increment = SliderConfig.Increment or 1
+                    SliderConfig.Default = SliderConfig.Default or 50
+                    SliderConfig.Callback = SliderConfig.Callback or function() end
+                    SliderConfig.InputEndedCallback = SliderConfig.InputEndedCallback or function() end
+                    SliderConfig.ValueName = SliderConfig.ValueName or ""
+                    SliderConfig.Color = SliderConfig.Color or Color3.fromRGB(28, 28, 28)
+                    SliderConfig.Flag = SliderConfig.Flag or nil
+
+                    local Slider = {Value = SliderConfig.Default, Name = SliderConfig.Name, Type = "Slider"}
+                    local Dragging = false
+
+                    local SliderDrag = SetChildren(SetProps(MakeElement("RoundFrame", SliderConfig.Color, 0, 6), {
+                        Size = UDim2.new(0, 0, 1, 0),
+                        BackgroundTransparency = 0.3,
+                        ClipsDescendants = true
+                    }), {
+                        AddThemeObject(SetProps(MakeElement("Label", "value", 13), {
+                            Size = UDim2.new(1, -12, 0, 14),
+                            Position = UDim2.new(0, 12, 0, 6),
+                            Font = Enum.Font.RobotoMedium,
+                            Name = "Value",
+                            TextTransparency = 0,
+                        }), "Text")
+                    })
+
+                    local SliderBar = SetChildren(SetProps(MakeElement("RoundFrame", SliderConfig.Color, 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(1, -24, 0, 26),
+                        Position = UDim2.new(0, 12, 0, 30),
+                        BackgroundTransparency = 0.9
+                    }), {
+                        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+                        AddThemeObject(SetProps(MakeElement("Label", "value", 13), {
+                            Size = UDim2.new(1, -12, 0, 14),
+                            Position = UDim2.new(0, 12, 0, 6),
+                            Font = Enum.Font.RobotoMedium,
+                            Name = "Value",
+                            TextTransparency = 0.8
+                        }), "Text"),
+                        SliderDrag
+                    })
+
+                    local SliderFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(1, 0, 0, 65),
+                        Parent = ItemParent,
+                        BackgroundTransparency = WindowConfig.ElementsTransparency,
+                        Name = "Slider",
+                    }), {
+                        AddThemeObject(SetProps(MakeElement("Label", SliderConfig.Name, 14), {
+                            Size = UDim2.new(1, -12, 0, 14),
+                            Position = UDim2.new(0, 12, 0, 10),
+                            Font = Enum.Font.RobotoMedium,
+                            Name = "Content",
+                            TextWrapped = true,
+                        }), "Text"),
+                        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+                        SliderBar
+                    }), "Elements")
+
+                    AddConnection(SliderFrame.Content:GetPropertyChangedSignal("Text"), function()
+                        SliderFrame.Content.Size = UDim2.new(1, -24, 0, SliderFrame.Content.TextBounds.Y)
+                        SliderFrame.Size = UDim2.new(1, 0, 0, SliderFrame.Content.TextBounds.Y + 35)
+                    end)
+
+                    SliderBar.InputBegan:Connect(function(Input)
+                        if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                            Dragging = true
+                        end
+                    end)
+
+                    local Click, Num = 0, 0
+                    local Keys = {
+                        [Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2, [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four] = 4, [Enum.KeyCode.Five] = 5, [Enum.KeyCode.Six] = 6, [Enum.KeyCode.Seven] = 7, [Enum.KeyCode.Eight] = 8, [Enum.KeyCode.Nine] = 9, [Enum.KeyCode.Zero] = 0,
+                        [Enum.KeyCode.KeypadOne] = 1, [Enum.KeyCode.KeypadTwo] = 2, [Enum.KeyCode.KeypadThree] = 3, [Enum.KeyCode.KeypadFour] = 4, [Enum.KeyCode.KeypadFive] = 5, [Enum.KeyCode.KeypadSix] = 6, [Enum.KeyCode.KeypadSeven] = 7, [Enum.KeyCode.KeypadEight] = 8, [Enum.KeyCode.KeypadNine] = 9, [Enum.KeyCode.KeypadZero] = 0,
+                        [Enum.KeyCode.Comma] = ".", [Enum.KeyCode.Period] = ".", [Enum.KeyCode.Minus] = "-", [Enum.KeyCode.KeypadMinus] = "-",
+                    }
+
+                    local lastclick = tick()
+                    SliderBar.InputEnded:Connect(function(key)
+                        if key.UserInputType == Enum.UserInputType.MouseButton1 then
+                            lastclick = tick()
+                            Click += 1
+                            task.delay(0.2, function()
+                                if tick() - lastclick >= 0.2 and Click == 1 then
+                                    Click = 0
+                                    Num = 0
+                                    SliderBar.ZIndex = 1
+                                end
+                            end)
+                            if Click >= 2 then
+                                Num = 0
+                                SliderBar.ZIndex = -1
+                                Slider:Set(Num)
+                                SliderBar.Value.Text = "Enter value"
+                                SliderDrag.Value.Text = "Enter value"
+                            end
+                        end
+                        task.wait()
+                    end)
+
+                    UserInputService.InputBegan:Connect(function(key)
+                        if UserInputService:GetFocusedTextBox() then return end
+                        if Click == 0 or Click == 1 then return end
+                        if key.KeyCode == Enum.KeyCode.Return and Click ~= 0 then
+                            Click = 0
+                            SliderBar.ZIndex = 1
+                            Slider:Set(Num)
+                            Num = 0
+                            return
+                        end
+                        if key.KeyCode == Enum.KeyCode.Backspace then
+                            Num = Num:sub(1, -2)
+                            SliderBar.Value.Text = tostring(Num).." "..SliderConfig.ValueName
+                            SliderDrag.Value.Text = tostring(Num).." " .. SliderConfig.ValueName
+                        end
+                        if key.KeyCode == Enum.KeyCode.Delete then
+                            Num = Num:sub(1, 2)
+                            SliderBar.Value.Text = tostring(Num).." "..SliderConfig.ValueName
+                            SliderDrag.Value.Text = tostring(Num).." " .. SliderConfig.ValueName
+                        end
+                        local smb = Keys[key.KeyCode]
+                        if smb == nil then return end
+                        if Click >= 2 then
+                            Num = Num == 0 and tostring(smb) or tostring(Num)..tostring(smb)
+                            if Num ~= "-" and (tonumber(Num) >= SliderConfig.Max or tonumber(Num) <= SliderConfig.Min) then
+                                Click = 0
+                                SliderBar.ZIndex = 1
+                                Slider:Set(Num)
+                                Num = 0
+                                return
+                            end
+                            SliderBar.Value.Text = tostring(Num).." "..SliderConfig.ValueName
+                            SliderDrag.Value.Text = tostring(Num).." " .. SliderConfig.ValueName
+                            task.wait()
+                        end
+                    end)
+
+                    SliderBar.InputEnded:Connect(function(Input)
+                        if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                            Dragging = false
+                            local SizeScale = math.clamp((Input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+                            SliderConfig.InputEndedCallback(Round(SliderConfig.Min + ((SliderConfig.Max - SliderConfig.Min) * SizeScale), SliderConfig.Increment))
+                        end
+                    end)
+
+                    UserInputService.InputChanged:Connect(function(Input)
+                        if Dragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
+                            local SizeScale = math.clamp((Input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+                            Slider:Set(SliderConfig.Min + ((SliderConfig.Max - SliderConfig.Min) * SizeScale))
+                        end
+                    end)
+
+                    function Slider:Set(Value)
+                        self.Value = math.clamp(Round(Value, SliderConfig.Increment), SliderConfig.Min, SliderConfig.Max)
+                        TweenService:Create(SliderDrag,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = UDim2.fromScale((self.Value - SliderConfig.Min) / (SliderConfig.Max - SliderConfig.Min), 1)}):Play()
+                        SliderBar.Value.Text = tostring(self.Value).." "..SliderConfig.ValueName
+                        SliderDrag.Value.Text = tostring(self.Value).." "..SliderConfig.ValueName
+                        SliderConfig.Callback(self.Value)
+                    end
+
+                    function Slider:SetColor(Color)
+                        SliderFrame.BackgroundColor3 = Color
+                        SliderDrag.BackgroundColor3 = Color3.fromRGB(Color.R * 150, Color.G * 150, Color.B * 150)
+                    end
+                    function Slider:SetStrokeColor(Color)
+                        SliderBar.BackgroundColor3 = Color
+                        SliderBar.Stroke.Color = Color
+                        SliderFrame.Stroke.Color = Color
+                    end
+                    function Slider:SetStrokeTransparency(Transparency)
+                        SliderFrame.Stroke.Transparency = Transparency
+                        SliderBar.Stroke.Transparency = Transparency
+                    end
+                    function Slider:SetTextColor(Color)
+                        SliderFrame.Content.TextColor3 = Color
+                        SliderDrag.Value.TextColor3 = Color
+                    end
+                    function Slider:SetTextTransparency(Transparency)
+                        SliderFrame.Content.TextTransparency = Transparency
+                        SliderDrag.Value.TextTransparency = Transparency
+                    end
+                    function Slider:SetTransparency(Transparency)
+                        SliderFrame.BackgroundTransparency = tonumber(Transparency)
+                    end
+
+                    Slider:Set(Slider.Value)
+                    if SliderConfig.Flag then NoctraLib.Flags[SliderConfig.Flag] = Slider end
+                    table.insert(NoctraLib.UIElements, Slider)
+                    return Slider
+                end
+
+                function ItemParent2:AddDropdown(DropdownConfig)
+                    DropdownConfig = DropdownConfig or {}
+                    DropdownConfig.Name = DropdownConfig.Name or "Dropdown"
+                    DropdownConfig.Options = DropdownConfig.Options or {}
+                    DropdownConfig.Multi = DropdownConfig.Multi or false
+                    DropdownConfig.Default = DropdownConfig.Default or (DropdownConfig.Multi and {} or "")
+                    DropdownConfig.Callback = DropdownConfig.Callback or function() end
+                    DropdownConfig.Flag = DropdownConfig.Flag or nil
+                    DropdownConfig.MaxSize = DropdownConfig.MaxSize or 5
+                    DropdownConfig.Search = DropdownConfig.Search or false
+
+                    local Dropdown = {Buttons = {}, Value = DropdownConfig.Default, LastOption = "", Options = DropdownConfig.Options, Buttons = {}, Toggled = false, Type = "Dropdown", Name = DropdownConfig.Name}
+                    local MaxElements = DropdownConfig.MaxSize
+
+                    if not table.find(Dropdown.Options, Dropdown.Value) then
+                        Dropdown.Value = {}
+                    end
+
+                    local DropdownList = SetProps(MakeElement("List"), {HorizontalAlignment = Enum.HorizontalAlignment.Center})
+
+                    local DropdownContainer = AddThemeObject(SetProps(SetChildren(MakeElement("ScrollFrame", Color3.fromRGB(40, 40, 40)), {
+                        DropdownList
+                    }), {
+                        Parent = ItemParent,
+                        Position = UDim2.new(0, 0, 0, 38),
+                        Size = UDim2.new(1, 0, 1, -38),
+                        ClipsDescendants = true
+                    }), "Divider")
+
+                    local Click = SetProps(MakeElement("Button"), {Size = UDim2.new(1, 0, 1, 0)})
+
+                    local DropdownFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(1, 0, 0, 38),
+                        Parent = ItemParent,
+                        ClipsDescendants = true,
+                        BackgroundTransparency = WindowConfig.ElementsTransparency,
+                        Name = "Dropdown",
+                    }), {
+                        DropdownContainer,
+                        SetProps(SetChildren(MakeElement("TFrame"), {
+                            AddThemeObject(SetProps(MakeElement("Label", DropdownConfig.Name, 14), {
+                                Size = UDim2.new(1, -12, 1, 0),
+                                Position = UDim2.new(0, 12, 0, 0),
+                                Font = Enum.Font.RobotoMedium,
+                                Name = "Content"
+                            }), "Text"),
+                            AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
+                                Size = UDim2.new(0, 20, 0, 20),
+                                AnchorPoint = Vector2.new(0, 0.5),
+                                Position = UDim2.new(1, -30, 0.5, 0),
+                                ImageColor3 = Color3.fromRGB(240, 240, 240),
+                                Name = "Ico"
+                            }), "TextDark"),
+                            AddThemeObject(SetProps(MakeElement("Frame"), {
+                                Size = UDim2.new(1, 0, 0, 1),
+                                Position = UDim2.new(0, 0, 1, -1),
+                                Name = "Line",
+                                Visible = false
+                            }), "Stroke"),
+                            Click
+                        }), {
+                            Size = UDim2.new(1, 0, 0, 38),
+                            ClipsDescendants = true,
+                            Name = "F"
+                        }),
+                        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+                        MakeElement("Corner", 0, 6)
+                    }), "Elements")
+
+                    if DropdownConfig.Search then
+                        local SearchBox = Create("TextBox", {
+                            Size = UDim2.new(1, 0, 1, -10),
+                            Position = UDim2.new(0, 0, 0, 5.5),
+                            BackgroundTransparency = 1,
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            PlaceholderColor3 = Color3.fromRGB(210,210,210),
+                            PlaceholderText = (type(WindowConfig.SearchBar) == "table" and WindowConfig.SearchBar.Default) or "Search",
+                            Font = Enum.Font.RobotoMedium,
+                            TextWrapped = true,
+                            Text = '',
+                            TextXAlignment = Enum.TextXAlignment.Center,
+                            TextSize = 13,
+                            ClearTextOnFocus = (type(WindowConfig.SearchBar) == "table" and WindowConfig.SearchBar.ClearTextOnFocus ~= nil and WindowConfig.SearchBar.ClearTextOnFocus) or true
+                        })
+
+                        local FakeSearch = SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 6), {
+                            Size = UDim2.new(1, 0, 1, 0),
+                            Position = UDim2.new(0, 0, 0, 0),
+                            Parent = SearchBox,
+                            BackgroundTransparency = 1,
+                        }), {
+                            SetProps(MakeElement("Stroke"), {
+                                Color = Color3.fromRGB(200, 200, 200),
+                                Name = "Stroke",
+                                Transparency = 0.35
+                            })
+                        })
+
+                        local TextboxActual = AddThemeObject(SearchBox, "Text")
+                        local SearchBar = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 1, 6), {
+                            Parent = DropdownContainer,
+                            Size = UDim2.new(1, -10, 0, 35),
+                            Position = UDim2.new(1, 0, 0, 25),
+                            AnchorPoint = Vector2.new(1, 0.5),
+                            BackgroundTransparency = 1,
+                            Name = "SearchBar",
+                        }), {
+                            TextboxActual,
+                        }), "Main")
+
+                        local function SearchHandle()
+                            pcall(function()
+                                local Text = string.lower(SearchBox.Text)
+                                if not TabHolder or not TabHolder:IsA("GuiObject") then return end
+                                for _, option in Dropdown.Buttons do
+                                    if not option:IsA("TextButton") then continue end
+                                    if Text == "" or string.find(string.lower(option.Title.Text), Text) then
+                                        option.Visible = true
+                                    else
+                                        option.Visible = false
+                                    end
+                                end
+                            end)
+                        end
+
+                        SearchBar.UICorner.CornerRadius = UDim.new(0, 6)
+                        AddConnection(TextboxActual:GetPropertyChangedSignal("Text"), SearchHandle)
+                    end
+
+                    AddConnection(DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+                        DropdownContainer.CanvasSize = UDim2.new(0, 0, 0, DropdownList.AbsoluteContentSize.Y)
+                    end)
+
+                    local function AddOptions(Options)
+                        for _, Option in pairs(Options) do
+                            local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(40, 40, 40)), {
+                                MakeElement("Corner", 0, 6),
+                                AddThemeObject(SetProps(MakeElement("Label", Option, 13, 0.4), {
+                                    Position = UDim2.new(0, 4, 0, 0),
+                                    Size = UDim2.new(1, -8, 1, 0),
+                                    Name = "Title"
+                                }), "Text")
+                            }), {
+                                Parent = DropdownContainer,
+                                Size = UDim2.new(1, 0, 0, 28),
+                                BackgroundTransparency = 1,
+                                ClipsDescendants = true
+                            }), "Divider")
+
+                            AddConnection(OptionBtn.MouseButton1Click, function()
+                                Dropdown.LastOption = Option
+                                Dropdown:Set(Option)
+                            end)
+
+                            Dropdown.Buttons[Option] = OptionBtn
+                        end
+                    end
+
+                    function Dropdown:ChangeVisibility(Bool) DropdownFrame.Visible = Bool end
+
+                    function Dropdown:Refresh(Options, Delete)
+                        if Delete then
+                            for _, Button in pairs(Dropdown.Buttons) do
+                                if Button then Button:Destroy() end
+                            end
+                            Dropdown.Buttons = {}
+                            Dropdown.Options = {}
+                        end
+                        Dropdown.Options = Options or {}
+                        AddOptions(Dropdown.Options)
+                        task.wait()
+                        DropdownContainer.CanvasSize = UDim2.new(0,0,0,DropdownList.AbsoluteContentSize.Y)
+                        if Dropdown.Toggled then
+                            local NewSize = #Dropdown.Options > MaxElements
+                                and UDim2.new(1,0,0,38 + (MaxElements * 28))
+                                or UDim2.new(1,0,0,DropdownList.AbsoluteContentSize.Y + 38)
+                            DropdownFrame.Size = NewSize
+                        end
+                    end
+
+                    function Dropdown:Set(Value)
+                        if not table.find(Dropdown.Options, Value) then
+                            Dropdown.Value = {}
+                            for _, v in pairs(Dropdown.Buttons) do
+                                v.BackgroundColor3 = DropdownFrame.BackgroundColor3
+                                TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
+                                TweenService:Create(v.Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0.4}):Play()
+                            end
+                            return
+                        end
+
+                        if DropdownConfig.Multi and not table.find(Dropdown.Value, Value) or not DropdownConfig.Multi and Dropdown.Value ~= Value then
+                            if not DropdownConfig.Multi then
+                                Dropdown.Value = Value
+                                for _, v in pairs(Dropdown.Buttons) do
+                                    v.BackgroundColor3 = DropdownFrame.BackgroundColor3
+                                    TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
+                                    TweenService:Create(v.Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0.4}):Play()
+                                end
+                            else
+                                Dropdown.Value[#Dropdown.Value+1] = Value
+                            end
+                            TweenService:Create(Dropdown.Buttons[Value],TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 0}):Play()
+                            TweenService:Create(Dropdown.Buttons[Value].Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0}):Play()
+                        else
+                            if not DropdownConfig.Multi then
+                                Dropdown.Value = "..."
+                                for _, v in pairs(Dropdown.Buttons) do
+                                    v.BackgroundColor3 = DropdownFrame.BackgroundColor3
+                                    TweenService:Create(v,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
+                                    TweenService:Create(v.Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0.4}):Play()
+                                end
+                            else
+                                for i, v in pairs(Dropdown.Value) do if v == Value then table.remove(Dropdown.Value, i) end end
+                            end
+                            TweenService:Create(Dropdown.Buttons[Value],TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{BackgroundTransparency = 1}):Play()
+                            TweenService:Create(Dropdown.Buttons[Value].Title,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{TextTransparency = 0.4}):Play()
+                        end
+                        return DropdownConfig.Callback(Dropdown.Value)
+                    end
+
+                    function Dropdown:SetColor(Color)
+                        DropdownFrame.BackgroundColor3 = Color
+                        for _, Btn in pairs(Dropdown.Buttons) do Btn.BackgroundColor3 = Color end
+                    end
+                    function Dropdown:SetTextColor(Color)
+                        DropdownFrame.F.Content.TextColor3 = Color
+                        for _, Btn in pairs(Dropdown.Buttons) do Btn.Title.TextColor3 = Color end
+                    end
+                    function Dropdown:SetTextTransparency(Transparency)
+                        DropdownFrame.F.Content.TextTransparency = Transparency
+                        for _, Btn in pairs(Dropdown.Buttons) do Btn.Title.TextTransparency = Transparency end
+                    end
+                    function Dropdown:SetStrokeColor(Color)
+                        DropdownFrame.Stroke.Color = Color
+                        DropdownFrame.F.Line.BackgroundColor3 = Color
+                        if DropdownConfig.Search then
+                            DropdownContainer.SearchBar.TextBox.Frame.Stroke.Color = Color
+                        end
+                    end
+                    function Dropdown:SetStrokeTransparency(Transparency)
+                        DropdownFrame.Stroke.Transparency = Transparency
+                        DropdownFrame.F.Line.BackgroundTransparency = Transparency
+                        if DropdownConfig.Search then
+                            DropdownContainer.SearchBar.TextBox.Frame.Stroke.Transparency = Transparency
+                        end
+                    end
+                    function Dropdown:SetTransparency(Transparency) DropdownFrame.BackgroundTransparency = Transparency end
+
+                    local OldSize = 0
+                    AddConnection(Click.MouseButton1Click, function()
+                        Dropdown.Toggled = not Dropdown.Toggled
+                        DropdownFrame.F.Line.Visible = Dropdown.Toggled
+                        TweenService:Create(DropdownFrame.F.Ico,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            Rotation = Dropdown.Toggled and 180 or 0
+                        }):Play()
+                        local NextSize = #Dropdown.Options > MaxElements and (Dropdown.Toggled and UDim2.new(1, 0, 0, 38 + (MaxElements * 28)) or UDim2.new(1, 0, 0, 38)) or (Dropdown.Toggled and UDim2.new(1, 0, 0, DropdownList.AbsoluteContentSize.Y + 38) or UDim2.new(1, 0, 0, 38))
+                        TweenService:Create(DropdownFrame,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = NextSize}):Play()
+                        if Dropdown.Toggled then
+                            OldSize = DropdownFrame.Parent.Parent.Parent.Size.Y.Offset
+                        end
+                        if DropdownFrame.Parent.Name == "SettingsScroll" then
+                            TweenService:Create(DropdownFrame.Parent.Parent.Parent, TweenInfo.new(.15), {
+                                Size = UDim2.new(1, 0, 0, Dropdown.Toggled and (#Dropdown.Options > MaxElements and 154 + (MaxElements * 28) or (DropdownList.AbsoluteContentSize.Y + 84)) or OldSize)
+                            }):Play()
+                        end
+                    end)
+
+                    Dropdown:Refresh(Dropdown.Options, false)
+                    Dropdown:Set(Dropdown.Value)
+
+                    if DropdownConfig.Flag then NoctraLib.Flags[DropdownConfig.Flag] = Dropdown end
+                    table.insert(NoctraLib.UIElements, Dropdown)
+                    return Dropdown
+                end
+
+                -- ★★★ PATCH BIND ★★★
+                function ItemParent2:AddBind(BindConfig)
+                    BindConfig = BindConfig or {}
+                    BindConfig.Name = BindConfig.Name or "Bind"
+                    BindConfig.Default = BindConfig.Default or ""
+                    BindConfig.Hold = BindConfig.Hold or false
+                    BindConfig.Callback = BindConfig.Callback or function() end
+                    BindConfig.Flag = BindConfig.Flag or nil
+                    BindConfig.UIBind = BindConfig.UIBind or false
+                    BindConfig.Button = BindConfig.Button or false
+                    BindConfig.ButtonIcon = BindConfig.ButtonIcon or "rbxassetid://3944703587"
+                    BindConfig.DoubleTap = BindConfig.DoubleTap or false
+                    BindConfig.TapDelay = BindConfig.TapDelay or 0.5
+                    BindConfig.Color = BindConfig.Color or Color3.fromRGB(28, 28, 28)
+
+                    if BindConfig.UIBind then
+                        WindowConfig.ToggleUIKey = BindConfig.Default
+                    end
+
+                    local Holding = false
+                    local Bind, Tap, OldBindName = {Value = "", Binding = false, Type = "Bind", Name = BindConfig.Name}, 0, BindConfig.Name
+
+                    local Click = SetProps(MakeElement("Button"), {Size = UDim2.new(1, 0, 1, 0)})
+                    local ClickBind = SetProps(MakeElement("Button"), {Size = UDim2.new(1, 0, 1, 0), ZIndex = 2})
+
+                    -- ★ PATCH: label inicial mostra o Default (tecla), não o nome
+                    local InitialKeyText = ""
+                    if BindConfig.Default ~= nil and BindConfig.Default ~= "" then
+                        if typeof(BindConfig.Default) == "EnumItem" then
+                            InitialKeyText = BindConfig.Default.Name
+                        else
+                            InitialKeyText = tostring(BindConfig.Default)
+                        end
+                    end
+
+                    local BindBox = SetChildren(SetProps(MakeElement("RoundFrame", BindConfig.Color, 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(0, 24, 0, 24),
+                        Position = UDim2.new(1, -12, 0.5, 0),
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        BackgroundTransparency = WindowConfig.ElementsTransparency,
+                    }), {
+                        SetProps(MakeElement("Stroke"), {
+                            Color = Color3.fromRGB(200, 200, 200),
+                            Transparency = 0.35,
+                            Name = "Stroke"
+                        }),
+                        AddThemeObject(SetProps(MakeElement("Label", InitialKeyText, 14), {   -- ★ PATCH
+                            Size = UDim2.new(1, 0, 1, 0),
+                            Font = Enum.Font.RobotoMedium,
+                            TextXAlignment = Enum.TextXAlignment.Center,
+                            Name = "Value",
+                        }), "Text"),
+                        ClickBind
+                    })
+
+                    local BindFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(1, 0, 0, 38),
+                        Parent = ItemParent,
+                        BackgroundTransparency = WindowConfig.ElementsTransparency,
+                        Name = "Bind",
+                    }), {
+                        AddThemeObject(SetProps(MakeElement("Label", BindConfig.Name, 14), {
+                            Size = UDim2.new(1, -45, 1, 0),
+                            Position = UDim2.new(0, 12, 0, 0),
+                            Font = Enum.Font.RobotoMedium,
+                            Name = "Content",
+                            TextWrapped = true,
+                        }), "Text"),
+                        AddThemeObject(SetProps(MakeElement("Image", BindConfig.ButtonIcon), {
+                            Size = UDim2.new(0, 20, 0, 20),
+                            Position = UDim2.new(1, -30, 0, 9),
+                            BackgroundTransparency = 1,
+                            Visible = false,
+                            Name = "Image",
+                        }), "TextDark"),
+                        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+                        BindBox,
+                        Click
+                    }), "Elements")
+
+                    if BindConfig.Button then
+                        BindFrame.Image.Visible = true
+                        BindBox.Position = UDim2.new(1, -35, 0.5, 0)
+                    end
+
+                    AddConnection(BindBox.Value:GetPropertyChangedSignal("Text"), function()
+                        TweenService:Create(BindBox, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, math.max(BindBox.Value.TextBounds.X + 16, 24), 0, 24)}):Play()
+                    end)
+
+                    AddConnection(ClickBind.InputEnded, function(Input)
+                        if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                            if Bind.Binding then return end
+                            Bind.Binding = true
+                            BindBox.Value.Text = ""
+                        end
+                    end)
+
+                    AddConnection(UserInputService.InputBegan, function(Input)
+                        if UserInputService:GetFocusedTextBox() then return end
+                        if (Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value) and not Bind.Binding then
+                            Tap += 1
+                            if Tap == 2 and BindConfig.DoubleTap then
+                                if BindConfig.Hold then
+                                    Holding = true
+                                    BindConfig.Callback(Holding)
+                                else
+                                    BindConfig.Callback()
+                                end
+                            elseif Tap == 1 and BindConfig.DoubleTap then
+                                BindFrame.Content.Text = "Are you sure?"
+                                task.wait(BindConfig.TapDelay)
+                                if Tap == 1 then
+                                    Tap = 0
+                                    BindFrame.Content.Text = OldBindName
+                                end
+                            elseif not BindConfig.DoubleTap then
+                                if BindConfig.Hold then
+                                    Holding = true
+                                    BindConfig.Callback(Holding)
+                                else
+                                    BindConfig.Callback()
+                                end
+                            end
+                            Tap = 0
+                            BindFrame.Content.Text = OldBindName
+                        elseif Bind.Binding then
+                            local Key
+                            pcall(function() if not CheckKey(BlacklistedKeys, Input.KeyCode) then Key = Input.KeyCode end end)
+                            pcall(function() if CheckKey(WhitelistedMouse, Input.UserInputType) and not Key then Key = Input.UserInputType end end)
+                            if Input.KeyCode == Enum.KeyCode.Backspace then
+                                Bind:Set("")
+                                return
+                            end
+                            Key = Key or Bind.Value
+                            Bind:Set(Key)
+                        end
+                    end)
+
+                    if BindConfig.Button then
+                        AddConnection(Click.MouseButton1Up, function()
+                            TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 6, NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 6, NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 6)}):Play()
+                            Tap += 1
+                            if Tap == 2 and BindConfig.DoubleTap then
+                                BindConfig.Callback()
+                            elseif Tap == 1 and BindConfig.DoubleTap then
+                                BindFrame.Content.Text = "Are you sure?"
+                                task.wait(BindConfig.TapDelay)
+                                if Tap == 1 then
+                                    Tap = 0
+                                    BindFrame.Content.Text = OldBindName
+                                end
+                            elseif not BindConfig.DoubleTap then
+                                BindConfig.Callback()
+                            end
+                            Tap = 0
+                            BindFrame.Content.Text = OldBindName
+                        end)
+                    end
+
+                    AddConnection(UserInputService.InputEnded, function(Input)
+                        if Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value then
+                            if BindConfig.Hold and Holding then
+                                Holding = false
+                                BindConfig.Callback(Holding)
+                            end
+                        end
+                    end)
+
+                    AddConnection(Click.MouseEnter, function()
+                        TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 6
+                            )
+                        }):Play()
+                    end)
+                    AddConnection(Click.MouseLeave, function()
+                        TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color
+                        }):Play()
+                    end)
+                    AddConnection(Click.MouseButton1Up, function()
+                        TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 6
+                            )
+                        }):Play()
+                    end)
+                    AddConnection(Click.MouseButton1Down, function()
+                        TweenService:Create(BindFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 10,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 10,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 10
+                            )
+                        }):Play()
+                    end)
+
+                    -- ★ PATCH: Set guarda o Name da tecla e mantém o texto
+                    function Bind:Set(Key)
+                        Bind.Binding = false
+                        if Key == "" or Key == nil then
+                            Bind.Value = ""
+                            BindBox.Value.Text = ""
+                            return
+                        end
+                        Bind.Value = Key
+                        if typeof(Bind.Value) == "EnumItem" then
+                            Bind.Value = Bind.Value.Name
+                        end
+                        BindBox.Value.Text = tostring(Bind.Value)
+                        if BindConfig.UIBind then
+                            WindowConfig.ToggleUIKey = Bind.Value
+                        end
+                    end
+
+                    function Bind:SetColor(Color) BindFrame.BackgroundColor3 = Color end
+                    function Bind:SetStrokeColor(Color) BindFrame.Stroke.Color = Color end
+                    function Bind:SetStrokeTransparency(Transparency) BindFrame.Stroke.Transparency = Transparency end
+                    function Bind:SetTextColor(Color) BindFrame.Content.TextColor3 = Color end
+                    function Bind:SetTextTransparency(Transparency) BindFrame.Content.TextTransparency = Transparency end
+                    function Bind:SetTransparency(Transparency) BindFrame.BackgroundTransparency = Transparency end
+
+                    -- ★ PATCH: aplica o Default (tecla) logo de cara
+                    Bind:Set(BindConfig.Default)
+
+                    if BindConfig.Flag then NoctraLib.Flags[BindConfig.Flag] = Bind end
+                    table.insert(NoctraLib.UIElements, Bind)
+                    return Bind
+                end
+
+                function ItemParent2:AddTextbox(TextboxConfig)
+                    TextboxConfig = TextboxConfig or {}
+                    TextboxConfig.Name = TextboxConfig.Name or "Textbox"
+                    TextboxConfig.Default = TextboxConfig.Default or ""
+                    TextboxConfig.TextDisappear = TextboxConfig.TextDisappear or false
+                    TextboxConfig.Callback = TextboxConfig.Callback or function() end
+
+                    local Textbox = {Value, Type = "Textbox", Name = TextboxConfig.Name}
+
+                    local Click = SetProps(MakeElement("Button"), {Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1})
+
+                    local TextboxActual = AddThemeObject(Create("TextBox", {
+                        Size = UDim2.new(1, 0, 1, 0),
+                        BackgroundTransparency = 1,
+                        TextColor3 = Color3.fromRGB(255, 255, 255),
+                        PlaceholderColor3 = Color3.fromRGB(210,210,210),
+                        PlaceholderText = "Input",
+                        Font = Enum.Font.RobotoMedium,
+                        TextXAlignment = Enum.TextXAlignment.Center,
+                        TextSize = 14,
+                        ClearTextOnFocus = false
+                    }), "Text")
+
+                    local TextContainer = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(0, 24, 0, 24),
+                        Position = UDim2.new(1, -12, 0.5, 0),
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        BackgroundTransparency = WindowConfig.ElementsTransparency
+                    }), {
+                        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+                        TextboxActual
+                    }), "Main")
+
+                    local TextboxFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(1, 0, 0, 38),
+                        Parent = ItemParent,
+                        BackgroundTransparency = WindowConfig.ElementsTransparency,
+                        Name = "Textbox",
+                    }), {
+                        AddThemeObject(SetProps(MakeElement("Label", TextboxConfig.Name, 14), {
+                            Size = UDim2.new(1, -12, 1, 0),
+                            Position = UDim2.new(0, 12, 0, 0),
+                            Font = Enum.Font.RobotoMedium,
+                            Name = "Content",
+                            TextWrapped = false,
+                        }), "Text"),
+                        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+                        TextContainer,
+                        Click
+                    }), "Elements")
+
+                    local function UpdateTextboxSize()
+                        local NewWidth = TextboxActual.TextBounds.X + 16
+                        local MaxWidth = TextboxFrame.Content.AbsoluteSize.X - TextboxFrame.Content.TextBounds.X - 24
+                        if TextboxActual.Text == "" then
+                            TextboxActual.TextScaled = false
+                        else
+                            if TextboxActual.TextBounds.X > MaxWidth - 16 then
+                                TextboxActual.TextScaled = true
+                            else
+                                TextboxActual.TextScaled = false
+                            end
+                        end
+                        if NewWidth > MaxWidth then NewWidth = MaxWidth end
+                        TweenService:Create(TextContainer, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            Size = UDim2.new(0, NewWidth, 0, 24)
+                        }):Play()
+                    end
+                    UpdateTextboxSize()
+
+                    AddConnection(TextboxActual:GetPropertyChangedSignal("Text"), UpdateTextboxSize)
+
+                    AddConnection(TextboxActual.FocusLost, function()
+                        TextboxConfig.Callback(TextboxActual.Text)
+                        if TextboxConfig.TextDisappear then TextboxActual.Text = "" end
+                        if TextboxActual.Text == "" then
+                            TextboxActual.TextScaled = false
+                        end
+                    end)
+
+                    function Textbox:Set(Text) TextboxActual.Text = Text end
+                    function Textbox:SetColor(Color) TextboxFrame.BackgroundColor3 = Color end
+                    function Textbox:SetStrokeColor(Color)
+                        TextContainer.Stroke.Color = Color
+                        TextboxFrame.Stroke.Color = Color
+                    end
+                    function Textbox:SetStrokeTransparency(Transparency)
+                        TextContainer.Stroke.Transparency = Transparency
+                        TextboxFrame.Stroke.Transparency = Transparency
+                    end
+                    function Textbox:SetTextColor(Color) TextboxFrame.Content.TextColor3 = Color end
+                    function Textbox:SetTextTransparency(Transparency) TextboxFrame.Content.TextTransparency = Transparency end
+                    function Textbox:SetTransparency(Transparency) TextboxFrame.BackgroundTransparency = Transparency end
+
+                    TextboxActual.Text = TextboxConfig.Default
+
+                    AddConnection(Click.MouseEnter, function()
+                        TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 6
+                            )
+                        }):Play()
+                    end)
+                    AddConnection(Click.MouseLeave, function()
+                        TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color
+                        }):Play()
+                    end)
+                    AddConnection(Click.MouseButton1Up, function()
+                        TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 6
+                            )
+                        }):Play()
+                        TextboxActual:CaptureFocus()
+                    end)
+                    AddConnection(Click.MouseButton1Down, function()
+                        TweenService:Create(TextboxFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 10,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 10,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 10
+                            )
+                        }):Play()
+                    end)
+
+                    table.insert(NoctraLib.UIElements, Textbox)
+                end
+
+                -- ★ ADDDIVIDER (novo) ★
+                function ItemParent2:AddDivider()
+                    local DividerFrame = AddThemeObject(SetProps(MakeElement("Frame"), {
+                        Size = UDim2.new(1, 0, 0, 1),
+                        BackgroundTransparency = 0.85,
+                        Parent = ItemParent,
+                        Name = "Divider"
+                    }), "Divider")
+
+                    local DividerFunction = {}
+                    function DividerFunction:SetColor(Color) DividerFrame.BackgroundColor3 = Color end
+                    function DividerFunction:SetTransparency(Transparency) DividerFrame.BackgroundTransparency = Transparency end
+                    function DividerFunction:Destroy() DividerFrame:Destroy() end
+
+                    table.insert(NoctraLib.UIElements, DividerFunction)
+                    return DividerFunction
+                end
+
+                function ItemParent2:AddColorpicker(ColorpickerConfig)
+                    ColorpickerConfig = ColorpickerConfig or {}
+                    ColorpickerConfig.Name = ColorpickerConfig.Name or "Colorpicker"
+                    ColorpickerConfig.Default = ColorpickerConfig.Default or Color3.fromRGB(255, 255, 255)
+                    ColorpickerConfig.DefaultTransparency = ColorpickerConfig.DefaultTransparency or 0
+                    ColorpickerConfig.Callback = ColorpickerConfig.Callback or function() end
+                    ColorpickerConfig.Flag = ColorpickerConfig.Flag or nil
+
+                    local ColorH, ColorS, ColorV = Color3.toHSV(ColorpickerConfig.Default)
+                    local TransparencyColor = ColorpickerConfig.DefaultTransparency
+                    local Colorpicker = {
+                        Value = ColorpickerConfig.Default, TransparencyValue = ColorpickerConfig.DefaultTransparency,
+                        Toggled = false, Type = "Colorpicker", Name = ColorpickerConfig.Name
+                    }
+
+                    local ColorSelection = Create("ImageLabel", {
+                        Size = UDim2.new(0, 18, 0, 18),
+                        Position = UDim2.new(select(3, Color3.toHSV(Colorpicker.Value))),
+                        ScaleType = Enum.ScaleType.Fit,
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        BackgroundTransparency = 1,
+                        Image = "http://www.roblox.com/asset/?id=4805639000"
+                    })
+
+                    local HueSelection = Create("ImageLabel", {
+                        Size = UDim2.new(0, 18, 0, 18),
+                        Position = UDim2.new(0.5, 0, 1 - select(1, Color3.toHSV(Colorpicker.Value))),
+                        ScaleType = Enum.ScaleType.Fit,
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        BackgroundTransparency = 1,
+                        BackgroundColor3 = Color3.fromRGB(255, 0, 0),
+                        Image = "http://www.roblox.com/asset/?id=4805639000"
+                    })
+
+                    local TransparencySelection = Create("ImageLabel", {
+                        Size = UDim2.new(0, 18, 0, 18),
+                        Position = UDim2.new(0.5, 0, 1 - select(1, Color3.toHSV(Colorpicker.Value))),
+                        ScaleType = Enum.ScaleType.Fit,
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        BackgroundTransparency = 1,
+                        BackgroundColor3 = Color3.fromRGB(255, 0, 0),
+                        Image = "http://www.roblox.com/asset/?id=4805639000"
+                    })
+
+                    local Color = Create("ImageLabel", {
+                        Size = UDim2.new(1, -60, 1, -45),
+                        Visible = false,
+                        Image = "rbxassetid://4155801252"
+                    }, {
+                        Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+                        ColorSelection
+                    })
+
+                    local Hue = Create("Frame", {
+                        Size = UDim2.new(0, 20, 1, -45),
+                        Position = UDim2.new(1, -50, 0, 0),
+                        Visible = false,
+                        Name = "Hue"
+                    }, {
+                        Create("UIGradient", {Rotation = 270, Color = ColorSequence.new{
+                            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 4)),
+                            ColorSequenceKeypoint.new(0.20, Color3.fromRGB(234, 255, 0)),
+                            ColorSequenceKeypoint.new(0.40, Color3.fromRGB(21, 255, 0)),
+                            ColorSequenceKeypoint.new(0.60, Color3.fromRGB(0, 255, 255)),
+                            ColorSequenceKeypoint.new(0.80, Color3.fromRGB(0, 17, 255)),
+                            ColorSequenceKeypoint.new(0.90, Color3.fromRGB(255, 0, 251)),
+                            ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 4))},
+                        }),
+                        Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+                        HueSelection
+                    })
+
+                    local Transparency = Create("ImageLabel", {
+                        Size = UDim2.new(0, 20, 1, -45),
+                        Position = UDim2.new(1, -20, 0, 0),
+                        Visible = false,
+                        Image = "rbxassetid://139785960036434",
+                        ScaleType = Enum.ScaleType.Tile,
+                        TileSize = UDim2.new(0, 5, 0, 5)
+                    }, {
+                        Create("UIGradient", {Rotation = 270, Color = ColorSequence.new{
+                            ColorSequenceKeypoint.new(0.00, Color3.fromRGB(0, 0, 0)),
+                            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+                        }}),
+                        Create("UICorner", {CornerRadius = UDim.new(0, 6)}),
+                        TransparencySelection
+                    })
+
+                    local ButtonClick = SetProps(MakeElement("Button"), {Size = UDim2.new(1, 0, 1, 0)})
+
+                    local ResetButton = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(1, 0, 0, 33),
+                        Position = UDim2.new(0, 0, 0, 110),
+                        Parent = ItemParent,
+                        BackgroundTransparency = WindowConfig.ElementsTransparency,
+                        Name = "Button",
+                    }), {
+                        AddThemeObject(SetProps(MakeElement("Label", "Reset", 14), {
+                            Size = UDim2.new(1, -40, 1, 0),
+                            Position = UDim2.new(0, 12, 0, 0),
+                            Font = Enum.Font.RobotoMedium,
+                            Name = "Content",
+                            TextWrapped = true,
+                            BackgroundTransparency = 1,
+                        }), "Text"),
+                        AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://3944703587"), {
+                            Size = UDim2.new(0, 20, 0, 20),
+                            Position = UDim2.new(1, -30, 0, 7),
+                            BackgroundTransparency = 1,
+                            Name = "Image"
+                        }), "TextDark"),
+                        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+                        ButtonClick
+                    }), "Elements")
+
+                    local ColorpickerContainer = Create("Frame", {
+                        Position = UDim2.new(0, -21, 0, 32),
+                        Size = UDim2.new(1, 45, 1, -32),
+                        BackgroundTransparency = 1,
+                        ClipsDescendants = true
+                    }, {
+                        Hue,
+                        Color,
+                        Transparency,
+                        ResetButton,
+                        Create("UIPadding", {
+                            PaddingLeft = UDim.new(0, 35),
+                            PaddingRight = UDim.new(0, 35),
+                            PaddingBottom = UDim.new(0, 10),
+                            PaddingTop = UDim.new(0, 17)
+                        })
+                    })
+
+                    local Click = SetProps(MakeElement("Button"), {Size = UDim2.new(1, 0, 1, 0)})
+
+                    local ColorpickerBox = SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(0, 24, 0, 24),
+                        Position = UDim2.new(1, -12, 0.5, 0),
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        Transparency = 0
+                    }), {
+                        AddThemeObject(MakeElement("Stroke"), "Stroke")
+                    })
+
+                    local ColorpickerFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, WindowConfig.NewUI and 10 or 6), {
+                        Size = UDim2.new(1, 0, 0, 38),
+                        Parent = ItemParent,
+                        BackgroundTransparency = WindowConfig.ElementsTransparency,
+                        Name = "Colorpicker",
+                    }), {
+                        SetProps(SetChildren(MakeElement("TFrame"), {
+                            AddThemeObject(SetProps(MakeElement("Label", ColorpickerConfig.Name, 15), {
+                                Size = UDim2.new(1, 0, 0, 38),
+                                Position = UDim2.new(0, 12, 0, 0),
+                                Font = Enum.Font.RobotoMedium,
+                                Name = "Content",
+                                TextWrapped = true,
+                            }), "Text"),
+                            ColorpickerBox,
+                            Click,
+                            AddThemeObject(SetProps(MakeElement("Frame"), {
+                                Size = UDim2.new(1, 0, 0, 1),
+                                Position = UDim2.new(0, 0, 1, -1),
+                                Name = "Line",
+                                Visible = false
+                            }), "Stroke"),
+                        }), {
+                            Size = UDim2.new(1, 0, 0, 38),
+                            ClipsDescendants = true,
+                            Name = "F"
+                        }),
+                        ColorpickerContainer,
+                        AddThemeObject(MakeElement("Stroke"), "Stroke"),
+                    }), "Elements")
+
+                    AddConnection(Click.MouseButton1Click, function()
+                        Colorpicker.Toggled = not Colorpicker.Toggled
+                        TweenService:Create(ColorpickerFrame, TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{
+                            Size = Colorpicker.Toggled and UDim2.new(1, 0, 0, 200) or UDim2.new(1, 0, 0, 38)
+                        }):Play()
+                        Color.Visible = Colorpicker.Toggled
+                        Hue.Visible = Colorpicker.Toggled
+                        Transparency.Visible = Colorpicker.Toggled
+                        ColorpickerFrame.F.Line.Visible = Colorpicker.Toggled
+                    end)
+
+                    local function UpdateColorPicker(NotCallbacking)
+                        ColorH = ColorH >= 0 and ColorH or 0
+                        ColorpickerBox.BackgroundColor3 = Color3.fromHSV(ColorH, ColorS, ColorV)
+                        ColorpickerBox.BackgroundTransparency = TransparencyColor
+                        Color.BackgroundColor3 = Color3.fromHSV(ColorH, 1, 1)
+                        if NotCallbacking == nil or NotCallbacking == false then
+                            ColorpickerConfig.Callback(ColorpickerBox.BackgroundColor3, ColorpickerBox.BackgroundTransparency)
+                        else
+                            Colorpicker.Value = ColorpickerBox.BackgroundColor3
+                            Colorpicker.TransparencyValue = ColorpickerBox.BackgroundTransparency
+                        end
+                    end
+
+                    AddConnection(ButtonClick.MouseButton1Up, function()
+                        TweenService:Create(ResetButton, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 6
+                            )
+                        }):Play()
+                        ColorH, ColorS, ColorV = Color3.toHSV(ColorpickerConfig.Default)
+                        TransparencyColor = ColorpickerConfig.DefaultTransparency
+                        HueSelection.Position = UDim2.new(0.5, 0, 1 - ColorH, 0)
+                        ColorSelection.Position = UDim2.new(ColorS, 0, 1 - ColorV, 0)
+                        TransparencySelection.Position = UDim2.new(0.5, 0, 1 - TransparencyColor, 0)
+                        UpdateColorPicker()
+                    end)
+
+                    HueSelection.Position = UDim2.new(0.5, 0, 1 - ColorH, 0)
+                    ColorSelection.Position = UDim2.new(ColorS, 0, 1 - ColorV, 0)
+
+                    AddConnection(Color.InputBegan, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            if ColorInput then ColorInput:Disconnect() end
+                            ColorInput = AddConnection(RunService.RenderStepped, function()
+                                local ColorX = (math.clamp(Mouse.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X)
+                                local ColorY = (math.clamp(Mouse.Y - Color.AbsolutePosition.Y, 0, Color.AbsoluteSize.Y) / Color.AbsoluteSize.Y)
+                                ColorSelection.Position = UDim2.new(ColorX, 0, ColorY, 0)
+                                ColorS = ColorX
+                                ColorV = 1 - ColorY
+                                UpdateColorPicker()
+                            end)
+                        end
+                    end)
+                    AddConnection(Color.InputEnded, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            if ColorInput then
+                                ColorInput:Disconnect()
+                                local ColorX = (math.clamp(Mouse.X - Color.AbsolutePosition.X, 0, Color.AbsoluteSize.X) / Color.AbsoluteSize.X)
+                                local ColorY = (math.clamp(Mouse.Y - Color.AbsolutePosition.Y, 0, Color.AbsoluteSize.Y) / Color.AbsoluteSize.Y)
+                                ColorSelection.Position = UDim2.new(ColorX, 0, ColorY, 0)
+                                ColorS = ColorX
+                                ColorV = 1 - ColorY
+                                UpdateColorPicker()
+                            end
+                        end
+                    end)
+
+                    AddConnection(Hue.InputBegan, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            if HueInput then HueInput:Disconnect() end
+                            HueInput = AddConnection(RunService.RenderStepped, function()
+                                local HueY = (math.clamp(Mouse.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
+                                HueSelection.Position = UDim2.new(0.5, 0, HueY, 0)
+                                ColorH = 1 - HueY
+                                UpdateColorPicker()
+                            end)
+                        end
+                    end)
+                    AddConnection(Hue.InputEnded, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            if HueInput then
+                                HueInput:Disconnect()
+                                local HueY = (math.clamp(Mouse.Y - Hue.AbsolutePosition.Y, 0, Hue.AbsoluteSize.Y) / Hue.AbsoluteSize.Y)
+                                HueSelection.Position = UDim2.new(0.5, 0, HueY, 0)
+                                ColorH = 1 - HueY
+                                UpdateColorPicker()
+                            end
+                        end
+                    end)
+
+                    AddConnection(Transparency.InputBegan, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            if TransparencyInput then TransparencyInput:Disconnect() end
+                            TransparencyInput = AddConnection(RunService.RenderStepped, function()
+                                local TransparencyY = (math.clamp(Mouse.Y - Transparency.AbsolutePosition.Y, 0, Transparency.AbsoluteSize.Y) / Transparency.AbsoluteSize.Y)
+                                TransparencySelection.Position = UDim2.new(0.5, 0, TransparencyY, 0)
+                                TransparencyColor = 1 - TransparencyY
+                                UpdateColorPicker()
+                            end)
+                        end
+                    end)
+                    AddConnection(Transparency.InputEnded, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            if TransparencyInput then
+                                TransparencyInput:Disconnect()
+                                local TransparencyY = (math.clamp(Mouse.Y - Transparency.AbsolutePosition.Y, 0, Transparency.AbsoluteSize.Y) / Transparency.AbsoluteSize.Y)
+                                TransparencySelection.Position = UDim2.new(0.5, 0, TransparencyY, 0)
+                                TransparencyColor = 1 - TransparencyY
+                                UpdateColorPicker()
+                            end
+                        end
+                    end)
+
+                    AddConnection(ButtonClick.MouseButton1Down, function()
+                        TweenService:Create(ResetButton, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 10,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 10,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 10
+                            )
+                        }):Play()
+                    end)
+                    AddConnection(ButtonClick.MouseEnter, function()
+                        TweenService:Create(ResetButton, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = Color3.fromRGB(
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.R * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.G * 255 + 6,
+                                NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color.B * 255 + 6
+                            )
+                        }):Play()
+                    end)
+                    AddConnection(ButtonClick.MouseLeave, function()
+                        TweenService:Create(ResetButton, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                            BackgroundColor3 = NoctraLib.Themes[NoctraLib.SelectedTheme].Elements.Color
+                        }):Play()
+                    end)
+
+                    function Colorpicker:Set(Value, Transp, NotCallbacking)
+                        Colorpicker.Value = Value
+                        Colorpicker.TransparencyValue = Transp
+                        ColorpickerBox.BackgroundColor3 = Colorpicker.Value
+                        ColorpickerBox.BackgroundTransparency = Colorpicker.TransparencyValue
+                        if NotCallbacking == nil or NotCallbacking == false then
+                            ColorpickerConfig.Callback(Colorpicker.Value, Colorpicker.TransparencyValue)
+                        end
+                    end
+
+                    UpdateColorPicker(true)
+
+                    function Colorpicker:SetColor(Color) ColorpickerFrame.BackgroundColor3 = Color end
+                    function Colorpicker:SetStrokeColor(Color)
+                        ColorpickerFrame.Stroke.Color = Color
+                        ColorpickerFrame.F.Line.BackgroundColor3 = Color
+                        ResetButton.Stroke.Color = Color
+                    end
+                    function Colorpicker:SetStrokeTransparency(Transparency)
+                        ColorpickerFrame.Stroke.Transparency = Transparency
+                        ColorpickerFrame.F.Line.BackgroundTransparency = Transparency
+                        ResetButton.Stroke.Transparency = Transparency
+                    end
+                    function Colorpicker:SetTextColor(Color)
+                        ColorpickerFrame.F.Content.TextColor3 = Color
+                        ResetButton.Content.TextColor3 = Color
+                    end
+                    function Colorpicker:SetTextTransparency(Transparency)
+                        ColorpickerFrame.F.Content.TextTransparency = Transparency
+                        ResetButton.Content.TextTransparency = Transparency
+                    end
+                    function Colorpicker:SetTransparency(Transparency) ColorpickerFrame.BackgroundTransparency = Transparency end
+
+                    Colorpicker:Set(Colorpicker.Value, TransparencyColor, true)
+                    if ColorpickerConfig.Flag then NoctraLib.Flags[ColorpickerConfig.Flag] = Colorpicker end
+                    Color.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                    table.insert(NoctraLib.UIElements, Colorpicker)
+                    return Colorpicker
+                end
+
+                return ItemParent2
+            end
+
+            AddElements(ElementFunction)
+            return ElementFunction
+        end
+
+        local ElementFunction = {Type = "ElementFunction", Name = TabConfig.Name}
+        function ElementFunction:AddSection(SectionConfig)
+            SectionConfig = SectionConfig or {}
+            SectionConfig.Name = SectionConfig.Name or "Section"
+            SectionConfig.Side = SectionConfig.Side or "Left"
+
+            local ContainerSection = (SectionConfig.Side == "Left") and ContainerLeft or ContainerRight
+
+            local SectionFrame = SetChildren(SetProps(MakeElement("TFrame"), {
+                Size = UDim2.new(1, 0, 0, 10),
+                Parent = ContainerSection
+            }), {
+                AddThemeObject(SetProps(MakeElement("Label", SectionConfig.Name, 14), {
+                    Size = UDim2.new(1, -12, 0, 20),
+                    Position = UDim2.new(0, 0, 0, -20),
+                    Font = Enum.Font.RobotoMedium
+                }), "Text"),
+                SetChildren(SetProps(MakeElement("TFrame"), {
+                    AnchorPoint = Vector2.new(0, 0),
+                    Size = UDim2.new(1, 0, 1, 0),
+                    Position = UDim2.new(0, 0, 0, 5),
+                    Name = "Holder"
+                }), {
+                    MakeElement("List", 0, 6)
+                }),
+            })
+
+            AddConnection(SectionFrame.Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+                SectionFrame.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y + 31)
+                SectionFrame.Holder.Size = UDim2.new(1, 0, 0, SectionFrame.Holder.UIListLayout.AbsoluteContentSize.Y)
+            end)
+
+            local SectionFunction = {}
+            for i, v in next, GetElements(SectionFrame.Holder) do SectionFunction[i] = v end
+            return SectionFunction
+        end
+
+        NoctraLib.Tabs[TabConfig.Name] = ElementFunction
+        return ElementFunction
+    end
+
+    NoctraLib.Window = TabFunction
+    return TabFunction
+end
+
+-- SetConfigTab, SaveAndLoadSizes, LoadAutoloadConfigs, Init, Destroy mantidos como no original (sem mudanças visuais)
+function NoctraLib:SetConfigTab(tabName)
+    NoctraLib.ConfigTab = tabName
+end
+
+function NoctraLib:Init()
+    local Window = game.CoreGui:FindFirstChild("NoctraLib")
+    if Window then
+        local MainWindow = Window:FindFirstChild("MainWindow")
+        if MainWindow then MainWindow.Visible = true end
+    end
+end
+
+SaveManager:Init()
+
+return NoctraLib
