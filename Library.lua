@@ -184,11 +184,22 @@ end
 		if Object:IsA("ImageLabel") or Object:IsA("ImageButton") then return (PropType == "Color" and "ImageColor3") or "ImageTransparency" end
 	end
 
-	local function AddThemeObject(Object, Type)
+		local function AddThemeObject(Object, Type)
 		if not OrionLib.ThemeObjects[Type] then OrionLib.ThemeObjects[Type] = {} end
 		table.insert(OrionLib.ThemeObjects[Type], Object)
-		Object[ReturnProperty(Object, "Color")] = OrionLib.Themes[OrionLib.SelectedTheme][Type]["Color"]
-		Object[ReturnProperty(Object, "Transparency")] = OrionLib.Themes[OrionLib.SelectedTheme][Type]["Transparency"]
+		
+		pcall(function()
+			local ColorProp = ReturnProperty(Object, "Color")
+			if ColorProp then
+				Object[ColorProp] = OrionLib.Themes[OrionLib.SelectedTheme][Type]["Color"]
+			end
+			
+			local TranspProp = ReturnProperty(Object, "Transparency")
+			if TranspProp then
+				Object[TranspProp] = OrionLib.Themes[OrionLib.SelectedTheme][Type]["Transparency"]
+			end
+		end)
+		
 		return Object
 	end
 
