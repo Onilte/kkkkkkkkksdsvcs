@@ -1,3 +1,18 @@
+local Tabs        = _G._NB_Tabs
+local Library     = _G._NB_Library
+local Options     = _G._NB_Options
+local Toggles     = _G._NB_Toggles
+local plr         = _G._NB_plr
+local rs          = _G._NB_rs
+local SetNetOwner = _G._NB_SetNetOwner
+local DestroyLine = _G._NB_DestroyLine
+local DestroyToy  = _G._NB_DestroyToy
+local SpawnToy    = _G._NB_SpawnToy
+local Ragdoll     = _G._NB_Ragdoll
+local CreateLine  = _G._NB_CreateLine
+local Struggle    = _G._NB_Struggle
+local StickyEvent = _G._NB_StickyEvent
+
 do
     local TargetTab = Tabs.Target
 
