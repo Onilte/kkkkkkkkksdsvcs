@@ -1,4 +1,3 @@
-
 local Library = {}
 local TS = game:GetService("TweenService")
 local UIS = game:GetService("UserInputService")
@@ -79,17 +78,18 @@ Library.GlobalCornerValue = 10
 
 local Themes = {
     Default = {
-        Main = Color3.fromRGB(25, 25, 30),
-        Second = Color3.fromRGB(35, 35, 40),
-        Accent = Color3.fromRGB(255, 255, 255),
-        ElementAccent = Color3.fromRGB(0, 160, 255),
-        GradientStart = Color3.fromRGB(255, 255, 255),
-        GradientEnd = Color3.fromRGB(200, 200, 200),
+        -- Cores inspiradas no print (Fundo escuro azulado, detalhes em azul)
+        Main = Color3.fromRGB(15, 16, 20),       -- Fundo principal muito escuro
+        Second = Color3.fromRGB(22, 25, 32),     -- Fundo dos painéis e caixas
+        Accent = Color3.fromRGB(0, 120, 255),    -- Azul vibrante para botões e detalhes
+        ElementAccent = Color3.fromRGB(0, 150, 255),
+        GradientStart = Color3.fromRGB(0, 120, 255),
+        GradientEnd = Color3.fromRGB(0, 80, 200),
         Text = Color3.fromRGB(255, 255, 255),
-        TextDark = Color3.fromRGB(170, 170, 170),
+        TextDark = Color3.fromRGB(140, 145, 160),
         Error = Color3.fromRGB(255, 60, 60),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.1,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -105,8 +105,8 @@ local Themes = {
         Text = Color3.fromRGB(255, 240, 240),
         TextDark = Color3.fromRGB(170, 120, 120),
         Error = Color3.fromRGB(255, 0, 0),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -122,8 +122,8 @@ local Themes = {
         Text = Color3.fromRGB(240, 230, 255),
         TextDark = Color3.fromRGB(160, 140, 190),
         Error = Color3.fromRGB(255, 0, 100),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -139,8 +139,8 @@ local Themes = {
         Text = Color3.fromRGB(240, 230, 255),
         TextDark = Color3.fromRGB(160, 140, 190),
         Error = Color3.fromRGB(255, 0, 100),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -156,8 +156,8 @@ local Themes = {
         Text = Color3.fromRGB(220, 255, 255),
         TextDark = Color3.fromRGB(120, 170, 170),
         Error = Color3.fromRGB(255, 80, 80),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -173,8 +173,8 @@ local Themes = {
         Text = Color3.fromRGB(220, 255, 220),
         TextDark = Color3.fromRGB(120, 170, 170),
         Error = Color3.fromRGB(255, 50, 50),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -190,8 +190,8 @@ local Themes = {
         Text = Color3.fromRGB(255, 240, 230),
         TextDark = Color3.fromRGB(170, 140, 120),
         Error = Color3.fromRGB(255, 0, 0),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -207,8 +207,8 @@ local Themes = {
         Text = Color3.fromRGB(255, 230, 255),
         TextDark = Color3.fromRGB(170, 120, 170),
         Error = Color3.fromRGB(255, 50, 100),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -224,8 +224,8 @@ local Themes = {
         Text = Color3.fromRGB(255, 250, 220),
         TextDark = Color3.fromRGB(170, 160, 120),
         Error = Color3.fromRGB(255, 50, 50),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -241,8 +241,8 @@ local Themes = {
         Text = Color3.fromRGB(255, 250, 220),
         TextDark = Color3.fromRGB(170, 160, 120),
         Error = Color3.fromRGB(255, 50, 50),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -258,8 +258,8 @@ local Themes = {
         Text = Color3.fromRGB(230, 255, 240),
         TextDark = Color3.fromRGB(120, 160, 140),
         Error = Color3.fromRGB(255, 80, 80),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -275,8 +275,8 @@ local Themes = {
         Text = Color3.fromRGB(230, 230, 255),
         TextDark = Color3.fromRGB(100, 120, 160),
         Error = Color3.fromRGB(255, 80, 80),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -292,8 +292,8 @@ local Themes = {
         Text = Color3.fromRGB(240, 240, 240),
         TextDark = Color3.fromRGB(120, 120, 120),
         Error = Color3.fromRGB(255, 100, 100),
-        Transparency = 0.25,
-        HudTransparency = 0.5,
+        Transparency = 0.15,
+        HudTransparency = 0.3,
         ImageTransparency = 0,
         Font = "Gotham",
         Background = "",
@@ -735,8 +735,8 @@ end
 local function AddStroke(instance, theme)
     local stroke = Create("UIStroke", {
         Color = Color3.new(1, 1, 1),
-        Thickness = 1.2,
-        Transparency = 0.5,
+        Thickness = 1.5,  -- Borda levemente mais grossa para destaque
+        Transparency = 0.6,
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
         Parent = instance
     })
@@ -1563,9 +1563,6 @@ function Library:CreateWindow(Settings)
         ZIndex = 1
     })
 
-    -- ==========================================
-    --  МАСКОТ / ДЕКОРАЦИЯ СВЕРХУ (КАРТИНКА / ВИДЕО)
-    -- ==========================================
     if Config.Mascot and (Config.Mascot.Enabled ~= false) then
         local mCfg = Config.Mascot
         local mType = string.lower(mCfg.Type or "Image")
@@ -1592,8 +1589,7 @@ function Library:CreateWindow(Settings)
                 Looped = (mCfg.Looped ~= nil) and mCfg.Looped or true,
                 Playing = (mCfg.Playing ~= nil) and mCfg.Playing or true,
                 Video = GetAssetId(mAsset),
-                ZIndex = mZIndex
-            })
+                ZIndex = mZIndex            })
         else
             MascotObj = Create("ImageLabel", {
                 Name = "WindowMascotImage",
@@ -1787,10 +1783,10 @@ function Library:CreateWindow(Settings)
         CanvasSize = UDim2.new(0, 0, 0, 0),
         AutomaticCanvasSize = Enum.AutomaticSize.Y
     })
-    AddCorner(TabContainer, 8)
+    AddCorner(TabContainer, 10) -- Arredondamento leve nos painéis
 
     local TabContainerStroke = AddStroke(TabContainer, SelectedTheme)
-    TabContainerStroke.Transparency = 0.8
+    TabContainerStroke.Transparency = 0.7
     Create("UIListLayout", {
         Parent = TabContainer,
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -1814,8 +1810,8 @@ function Library:CreateWindow(Settings)
         ZIndex = 5,
         ThemeTag = "Second"
     })
-    AddCorner(ProfileFrame, 8)
-    AddStroke(ProfileFrame, SelectedTheme).Transparency = 0.8
+    AddCorner(ProfileFrame, 10)
+    AddStroke(ProfileFrame, SelectedTheme).Transparency = 0.7
 
     local AvatarImg = "rbxasset://textures/ui/GuiImagePlaceholder.png"
     pcall(function()
@@ -1957,7 +1953,7 @@ function Library:CreateWindow(Settings)
             LayoutOrder = isSettings and 99999 or MyIndex,
             ThemeTag = "Main"
         })
-        AddCorner(TabBtn, 6)
+        AddCorner(TabBtn, 8) -- Mais arredondado para parecer os botões da imagem
 
         local TabLabel
         local ActiveLine
@@ -2314,7 +2310,7 @@ function Library:CreateWindow(Settings)
                     ThemeTag = "Second"
                 })
                 AddCorner(Btn, 8)
-                AddStroke(Btn, SelectedTheme).Transparency = 0.8
+                AddStroke(Btn, SelectedTheme).Transparency = 0.7
 
                 local Lbl = Create("TextLabel", {
                     Parent = Btn,
@@ -2359,7 +2355,7 @@ function Library:CreateWindow(Settings)
                     ThemeTag = "Second"
                 })
                 AddCorner(Btn, 8)
-                AddStroke(Btn, SelectedTheme).Transparency = 0.8
+                AddStroke(Btn, SelectedTheme).Transparency = 0.7
 
                 local Lbl = Create("TextLabel", {
                     Parent = Btn,
@@ -2465,7 +2461,7 @@ function Library:CreateWindow(Settings)
                     ThemeTag = "Second"
                 })
                 AddCorner(Frame, 8)
-                AddStroke(Frame, SelectedTheme).Transparency = 0.8
+                AddStroke(Frame, SelectedTheme).Transparency = 0.7
 
                 local Lbl = Create("TextLabel", {
                     Parent = Frame,
@@ -2618,7 +2614,7 @@ function Library:CreateWindow(Settings)
                     ThemeTag = "Second"
                 })
                 AddCorner(Frame, 8)
-                AddStroke(Frame, SelectedTheme).Transparency = 0.8
+                AddStroke(Frame, SelectedTheme).Transparency = 0.7
 
                 local Lbl = Create("TextLabel", {
                     Parent = Frame,
@@ -2727,7 +2723,7 @@ function Library:CreateWindow(Settings)
                     ThemeTag = "Second"
                 })
                 AddCorner(Drop, 8)
-                AddStroke(Drop, SelectedTheme).Transparency = 0.8
+                AddStroke(Drop, SelectedTheme).Transparency = 0.7
 
                 DefaultHover(Drop)
                 
@@ -2895,7 +2891,7 @@ function Library:CreateWindow(Settings)
                     ThemeTag = "Second"
                 })
                 AddCorner(Wrapper, 8)
-                AddStroke(Wrapper, SelectedTheme).Transparency = 0.8
+                AddStroke(Wrapper, SelectedTheme).Transparency = 0.7
 
                 local TriggerBtn = Create("TextButton", { Parent = Wrapper, Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1, Text = "", ZIndex = 8 })
                 
@@ -3171,7 +3167,7 @@ function Library:CreateWindow(Settings)
                     ThemeTag = "Second"
                 })
                 AddCorner(Frame, 8)
-                AddStroke(Frame, SelectedTheme).Transparency = 0.8
+                AddStroke(Frame, SelectedTheme).Transparency = 0.7
 
                 local TitleOffset = 12
                 local VP_Key = workspace.CurrentCamera.ViewportSize
@@ -3424,12 +3420,9 @@ function Library:CreateWindow(Settings)
                     ZIndex = 5,
                     ThemeTag = "Second"
                 })
-                AddCorner(BlockFrame, 8)
+                AddCorner(BlockFrame, 10) -- Blocos com bordas mais visíveis
+                AddStroke(BlockFrame, SelectedTheme).Transparency = 0.6
 
-                local BlockStroke = Create("UIStroke", { Parent = BlockFrame, Color = Color3.new(1, 1, 1), Transparency = 0.7, Thickness = 1 })
-                local BlockGrad = Create("UIGradient", { Parent = BlockStroke, Color = SelectedTheme.Gradient })
-                table.insert(Library.GradientObjects, BlockGrad)
-                
                 Create("Frame", {
                     Parent = BlockFrame,
                     Size = UDim2.new(1, -24, 0, 1),
