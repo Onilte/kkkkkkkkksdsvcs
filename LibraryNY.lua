@@ -45,6 +45,8 @@ Library.GradientObjects = {}
 Library.CornerObjects = {}
 Library.KeybindFlags = {}
 Library.IsLoadingConfig = false
+Library.AnimatedGradients = {}
+Library.ButtonGradients = {}
 
 Library.GlobalScale = 1.0
 Library.ScaleObj = nil
@@ -731,7 +733,7 @@ local function CreateDropShadow(parent, blurRadius, opacity)
     return Shadow
 end
 
--- Borda Estática com Gradiente Azul (Sem travamentos)
+-- Gradiente estático na borda (Bordas azuis)
 local function AddStroke(instance, theme)
     local stroke = Create("UIStroke", {
         Color = Color3.fromRGB(255, 255, 255),
@@ -3479,7 +3481,7 @@ function Library:CreateWindow(Settings)
                 })
                 
                 Create("UIListLayout", { Parent = BlockContent, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) })
-                Create("UIPadding", { Parent = BlockContent, PaddingTop = UDim.new(0, 2), PaddingBottom = UDim2.new(0, 10), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) })
+                Create("UIPadding", { Parent = BlockContent, PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 10), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) })
                 
                 return GetElements(BlockContent)
             end
