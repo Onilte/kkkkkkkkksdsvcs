@@ -45,6 +45,8 @@ Library.GradientObjects = {}
 Library.CornerObjects = {}
 Library.KeybindFlags = {}
 Library.IsLoadingConfig = false
+Library.AnimatedGradients = {}
+Library.ButtonGradients = {}
 
 Library.GlobalScale = 1.0
 Library.ScaleObj = nil
@@ -74,15 +76,14 @@ local AvailableFonts = {
 
 Library.GlobalFont = Enum.Font.Gotham
 Library.GlobalFontBold = Enum.Font.GothamBold
-Library.GlobalCornerValue = 14 -- Aumentado para ficar igual ao print
+Library.GlobalCornerValue = 8 -- Reduzido para bordas menos redondas
 
 local Themes = {
     Default = {
-        -- Cores extraídas do print da Promptly
-        Main = Color3.fromRGB(12, 12, 16),       -- Fundo geral super escuro
-        Second = Color3.fromRGB(18, 20, 26),     -- Fundo dos painéis (blocos e abas)
-        Accent = Color3.fromRGB(40, 70, 180),    -- Azul do contorno das bordas (Stroke)
-        ElementAccent = Color3.fromRGB(80, 100, 255), -- Azul claro para botões ativos/sliders
+        Main = Color3.fromRGB(12, 12, 16),
+        Second = Color3.fromRGB(18, 20, 26),
+        Accent = Color3.fromRGB(40, 70, 180),
+        ElementAccent = Color3.fromRGB(80, 100, 255),
         GradientStart = Color3.fromRGB(18, 20, 26),
         GradientEnd = Color3.fromRGB(40, 70, 180),
         Text = Color3.fromRGB(240, 240, 245),
@@ -517,7 +518,7 @@ local function GetTheme(cfg)
         if not restored.Font then restored.Font = "Gotham" end
         if not restored.TextDark then restored.TextDark = Color3.fromRGB(170, 170, 170) end
         if not restored.Error then restored.Error = Color3.fromRGB(255, 60, 60) end
-        if restored.CornerRadius == nil then restored.CornerRadius = 10 end
+        if restored.CornerRadius == nil then restored.CornerRadius = 8 end
         if restored.HudTransparency == nil then restored.HudTransparency = 0.5 end
         if restored.UiScale == nil then restored.UiScale = 1.0 end
         return restored
@@ -732,10 +733,34 @@ local function CreateDropShadow(parent, blurRadius, opacity)
     return Shadow
 end
 
--- Borda alterada para refletir o visual azulado escuro da imagem
+-- Animação de gradiente brilhando da esquerda pra direita
+local function AnimateGradient(gradient, speed, minOffset, maxOffset)
+    if not gradient or not gradient.Parent then return end
+    local offset = minOffset or -0.5
+    local dir = 1
+    local conn
+    conn = RS.RenderStepped:Connect(function(dt)
+        if not gradient.Parent then
+            conn:Disconnect()
+            return
+        end
+        offset = offset + (dt * (speed or 0.8) * dir)
+        if offset >= (maxOffset or 1.5) then
+            offset = (maxOffset or 1.5)
+            dir = -1
+        elseif offset <= (minOffset or -0.5) then
+            offset = (minOffset or -0.5)
+            dir = 1
+        end
+        gradient.Offset = Vector2.new(offset, 0)
+    end)
+    table.insert(Library.AnimatedGradients, conn)
+end
+
+-- Stroke com gradiente brilhando (bordas)
 local function AddStroke(instance, theme)
     local stroke = Create("UIStroke", {
-        Color = Color3.fromRGB(35, 55, 110), -- Borda azul escura
+        Color = Color3.fromRGB(35, 55, 110),
         Thickness = 1.5,
         Transparency = 0.2,
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
@@ -744,13 +769,59 @@ local function AddStroke(instance, theme)
     local gradient = Create("UIGradient", {
         Color = ColorSequence.new{
             ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 40, 90)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 80, 160))
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 130, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 40, 90))
         },
-        Rotation = 45,
+        Rotation = 0,
         Parent = stroke
     })
     table.insert(Library.GradientObjects, gradient)
+    AnimateGradient(gradient, 0.6, -1.2, 1.2)
     return stroke
+end
+
+-- Gradiente fino para botões (brilho passando)
+local function AddButtonGradient(btn, color)
+    if not btn then return end
+    local existing = btn:FindFirstChild("ButtonShine")
+    if existing then existing:Destroy() end
+    
+    local shine = Create("Frame", {
+        Name = "ButtonShine",
+        Parent = btn,
+        Size = UDim2.new(0.4, 0, 1, 0),
+        Position = UDim2.new(-0.5, 0, 0, 0),
+        BackgroundColor3 = color or Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 0.75,
+        BorderSizePixel = 0,
+        ZIndex = (btn.ZIndex or 1) + 1
+    })
+    AddCorner(shine, 6)
+    local shineGrad = Instance.new("UIGradient")
+    shineGrad.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+        ColorSequenceKeypoint.new(0.5, Color3.new(1, 1, 1)),
+        ColorSequenceKeypoint.new(1, Color3.new(1, 1, 1))
+    }
+    shineGrad.Transparency = NumberSequence.new{
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.5, 0.4),
+        NumberSequenceKeypoint.new(1, 1)
+    }
+    shineGrad.Parent = shine
+    
+    task.spawn(function()
+        while shine.Parent do
+            shine.Position = UDim2.new(-0.5, 0, 0, 0)
+            local tw = TS:Create(shine, TweenInfo.new(2.5, Enum.EasingStyle.Linear), {Position = UDim2.new(1.2, 0, 0, 0)})
+            tw:Play()
+            tw.Completed:Wait()
+            if not shine.Parent then break end
+            task.wait(1.5)
+        end
+    end)
+    table.insert(Library.ButtonGradients, shine)
+    return shine
 end
 
 local function CreateRipple(btn, color)
@@ -911,7 +982,7 @@ function Library:KeySystem(Settings)
         BackgroundTransparency = 0.05,
         ClipsDescendants = true
     })
-    AddCorner(Main, 14)
+    AddCorner(Main, 10)
     AddStroke(Main, SelectedTheme)
     
     local Shadow1 = CreateDropShadow(KeyContainer, 80, 0.3)
@@ -1006,6 +1077,7 @@ function Library:KeySystem(Settings)
     })
     AddCorner(CheckBtn, 8)
     CreateRipple(CheckBtn, Color3.new(1, 1, 1))
+    AddButtonGradient(CheckBtn, Color3.new(1, 1, 1))
     
     local GetKeyBtn = Create("TextButton", {
         Parent = Content,
@@ -1022,6 +1094,7 @@ function Library:KeySystem(Settings)
     AddCorner(GetKeyBtn, 8)
     CreateRipple(GetKeyBtn, SelectedTheme.Accent)
     AddStroke(GetKeyBtn, SelectedTheme).Transparency = 0.7
+    AddButtonGradient(GetKeyBtn, SelectedTheme.Accent)
     
     local Status = Create("TextLabel", {
         Parent = Content,
@@ -1121,7 +1194,7 @@ function Library:CreateWindow(Settings)
     local Title = Config.Title or "UI"
     local SelectedTheme = GetTheme(Config.Theme)
     
-    Library.GlobalCornerValue = Config.CornerRadius or SelectedTheme.CornerRadius or 14
+    Library.GlobalCornerValue = Config.CornerRadius or SelectedTheme.CornerRadius or 8
     Library.GlobalScale = Config.UiScale or SelectedTheme.UiScale or 1.0
 
     Library.ConfigFolder = Config.ConfigFolder or "SolarisUI-Configs"
@@ -1443,7 +1516,7 @@ function Library:CreateWindow(Settings)
             ClipsDescendants = true,
             ThemeTag = "Main"
         })
-        AddCorner(Frame, 10)
+        AddCorner(Frame, 8)
         
         local Stroke = AddStroke(Frame, SelectedTheme)
         Stroke.Transparency = 1 
@@ -1635,7 +1708,7 @@ function Library:CreateWindow(Settings)
         ZIndex = 1
     })
     SetImageAsync(MainBgImage, "Image", SelectedTheme.Background)
-    AddCorner(MainBgImage, 16)
+    AddCorner(MainBgImage, 10)
     
     local MainBgColor = Create("Frame", {
         Parent = Main,
@@ -1645,9 +1718,9 @@ function Library:CreateWindow(Settings)
         ZIndex = 2,
         ThemeTag = "Main"
     })
-    AddCorner(MainBgColor, 16)
+    AddCorner(MainBgColor, 10)
 
-    AddCorner(Main, 16) -- Bordas da janela principal bem arredondadas
+    AddCorner(Main, 10)
     AddStroke(Main, SelectedTheme)
     
     TS:Create(WindowContainer, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = WindowSize}):Play()
@@ -1774,7 +1847,6 @@ function Library:CreateWindow(Settings)
         Scale = Library.GlobalScale
     })
 
-    -- SIDEBAR (Painel Esquerdo)
     local TabContainer = Create("ScrollingFrame", {
         Parent = Library.ScaleWrapper,
         Size = UDim2.new(0.22, 0, 1, -78),
@@ -1788,7 +1860,7 @@ function Library:CreateWindow(Settings)
         CanvasSize = UDim2.new(0, 0, 0, 0),
         AutomaticCanvasSize = Enum.AutomaticSize.Y
     })
-    AddCorner(TabContainer, 12) 
+    AddCorner(TabContainer, 10) 
     AddStroke(TabContainer, SelectedTheme).Transparency = 0.6
 
     Create("UIListLayout", {
@@ -1814,7 +1886,7 @@ function Library:CreateWindow(Settings)
         ZIndex = 5,
         ThemeTag = "Second"
     })
-    AddCorner(ProfileFrame, 12)
+    AddCorner(ProfileFrame, 10)
     AddStroke(ProfileFrame, SelectedTheme).Transparency = 0.6
 
     local AvatarImg = "rbxasset://textures/ui/GuiImagePlaceholder.png"
@@ -1906,7 +1978,7 @@ function Library:CreateWindow(Settings)
             ImageColor3 = SelectedTheme.Accent,
             ThemeTag = "Main"
         })
-        AddCorner(MobileBtn, 14)
+        AddCorner(MobileBtn, 10)
         AddStroke(MobileBtn, SelectedTheme)
         MakeDraggable(MobileBtn, MobileBtn)
         CreateDropShadow(MobileBtn, 35, 0.3)
@@ -1957,7 +2029,7 @@ function Library:CreateWindow(Settings)
             LayoutOrder = isSettings and 99999 or MyIndex,
             ThemeTag = "Main"
         })
-        AddCorner(TabBtn, 8)
+        AddCorner(TabBtn, 6)
 
         local TabLabel
         local ActiveLine
@@ -2313,8 +2385,9 @@ function Library:CreateWindow(Settings)
                     LayoutOrder = ElementOrder,
                     ThemeTag = "Second"
                 })
-                AddCorner(Btn, 10)
+                AddCorner(Btn, 8)
                 AddStroke(Btn, SelectedTheme).Transparency = 0.7
+                AddButtonGradient(Btn, SelectedTheme.Accent)
 
                 local Lbl = Create("TextLabel", {
                     Parent = Btn,
@@ -2358,8 +2431,9 @@ function Library:CreateWindow(Settings)
                     LayoutOrder = ElementOrder,
                     ThemeTag = "Second"
                 })
-                AddCorner(Btn, 10)
+                AddCorner(Btn, 8)
                 AddStroke(Btn, SelectedTheme).Transparency = 0.7
+                AddButtonGradient(Btn, SelectedTheme.Accent)
 
                 local Lbl = Create("TextLabel", {
                     Parent = Btn,
@@ -2464,8 +2538,9 @@ function Library:CreateWindow(Settings)
                     LayoutOrder = ElementOrder,
                     ThemeTag = "Second"
                 })
-                AddCorner(Frame, 10)
+                AddCorner(Frame, 8)
                 AddStroke(Frame, SelectedTheme).Transparency = 0.7
+                AddButtonGradient(Frame, SelectedTheme.Accent)
 
                 local Lbl = Create("TextLabel", {
                     Parent = Frame,
@@ -2617,8 +2692,9 @@ function Library:CreateWindow(Settings)
                     LayoutOrder = ElementOrder,
                     ThemeTag = "Second"
                 })
-                AddCorner(Frame, 10)
+                AddCorner(Frame, 8)
                 AddStroke(Frame, SelectedTheme).Transparency = 0.7
+                AddButtonGradient(Frame, SelectedTheme.Accent)
 
                 local Lbl = Create("TextLabel", {
                     Parent = Frame,
@@ -2726,8 +2802,9 @@ function Library:CreateWindow(Settings)
                     LayoutOrder = ElementOrder,
                     ThemeTag = "Second"
                 })
-                AddCorner(Drop, 10)
+                AddCorner(Drop, 8)
                 AddStroke(Drop, SelectedTheme).Transparency = 0.7
+                AddButtonGradient(Drop, SelectedTheme.Accent)
 
                 DefaultHover(Drop)
                 
@@ -2837,7 +2914,7 @@ function Library:CreateWindow(Settings)
                             hoverTweenBtn:Play()
                         end)
                         Btn.MouseLeave:Connect(function()
-                            if hoverTweenBtn then hoverTweenBind:Cancel() end
+                            if hoverTweenBtn then hoverTweenBtn:Cancel() end
                             leaveTweenBtn = TS:Create(Btn, TweenInfo.new(0.2), {BackgroundTransparency = 0.8, TextColor3 = SelectedTheme.TextDark})
                             leaveTweenBtn:Play()
                         end)
@@ -2894,8 +2971,9 @@ function Library:CreateWindow(Settings)
                     LayoutOrder = ElementOrder,
                     ThemeTag = "Second"
                 })
-                AddCorner(Wrapper, 10)
+                AddCorner(Wrapper, 8)
                 AddStroke(Wrapper, SelectedTheme).Transparency = 0.7
+                AddButtonGradient(Wrapper, SelectedTheme.Accent)
 
                 local TriggerBtn = Create("TextButton", { Parent = Wrapper, Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1, Text = "", ZIndex = 8 })
                 
@@ -3170,8 +3248,9 @@ function Library:CreateWindow(Settings)
                     LayoutOrder = ElementOrder,
                     ThemeTag = "Second"
                 })
-                AddCorner(Frame, 10)
+                AddCorner(Frame, 8)
                 AddStroke(Frame, SelectedTheme).Transparency = 0.7
+                AddButtonGradient(Frame, SelectedTheme.Accent)
 
                 local TitleOffset = 12
                 local VP_Key = workspace.CurrentCamera.ViewportSize
@@ -3237,7 +3316,7 @@ function Library:CreateWindow(Settings)
                                     ZIndex = 10000,
                                     ThemeTag = "Main"
                                 })
-                                AddCorner(OnScreenBtn, 12)
+                                AddCorner(OnScreenBtn, 8)
                                 AddStroke(OnScreenBtn, SelectedTheme).Transparency = 0.5
                                 table.insert(Library.ThemeObjects.Text, OnScreenBtn)
 
@@ -3415,7 +3494,6 @@ function Library:CreateWindow(Settings)
                 local Side = BlockCfg.Side or "Left"
                 local TargetColumn = (Side == "Right" and RightCol) or LeftCol
                 
-                -- Blocos (Cards) com bordas e fundo no estilo da imagem
                 local BlockFrame = Create("Frame", {
                     Parent = TargetColumn,
                     Size = UDim2.new(1, 0, 0, 0),
@@ -3425,7 +3503,7 @@ function Library:CreateWindow(Settings)
                     ZIndex = 5,
                     ThemeTag = "Second"
                 })
-                AddCorner(BlockFrame, 12)
+                AddCorner(BlockFrame, 10)
                 AddStroke(BlockFrame, SelectedTheme).Transparency = 0.5
 
                 Create("Frame", {
