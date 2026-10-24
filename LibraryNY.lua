@@ -46,7 +46,6 @@ Library.CornerObjects = {}
 Library.KeybindFlags = {}
 Library.IsLoadingConfig = false
 Library.AnimatedGradients = {}
-Library.ButtonGradients = {}
 
 Library.GlobalScale = 1.0
 Library.ScaleObj = nil
@@ -733,91 +732,49 @@ local function CreateDropShadow(parent, blurRadius, opacity)
     return Shadow
 end
 
+-- BORDA DUPLA COM BRILHO ANIMADO
 local function AddStroke(instance, theme)
-    local stroke = Create("UIStroke", {
-        Color = Color3.fromRGB(35, 55, 110),
-        Thickness = 1.5,
+    -- Borda Base (Interna)
+    local baseStroke = Create("UIStroke", {
+        Color = Color3.fromRGB(25, 35, 60),
+        Thickness = 1,
         Transparency = 0.2,
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
         Parent = instance
     })
+
+    -- Borda Brilhante (Externa)
+    local glowStroke = Create("UIStroke", {
+        Color = Color3.fromRGB(255, 255, 255),
+        Thickness = 2,
+        Transparency = 0.3,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+        Parent = instance
+    })
+    
     local gradient = Create("UIGradient", {
         Color = ColorSequence.new{
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 40, 90)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 130, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 40, 90))
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 150, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
         },
         Rotation = 0,
-        Parent = stroke
+        Parent = glowStroke
     })
     table.insert(Library.GradientObjects, gradient)
-    return stroke
-end
-
-local function AnimateGradient(gradient, speed, minOffset, maxOffset)
-    if not gradient or not gradient.Parent then return end
-    local offset = minOffset or -0.5
-    local dir = 1
-    local conn
-    conn = RS.RenderStepped:Connect(function(dt)
-        if not gradient.Parent then
-            conn:Disconnect()
-            return
-        end
-        offset = offset + (dt * (speed or 0.8) * dir)
-        if offset >= (maxOffset or 1.5) then
-            offset = (maxOffset or 1.5)
-            dir = -1
-        elseif offset <= (minOffset or -0.5) then
-            offset = (minOffset or -0.5)
-            dir = 1
-        end
-        gradient.Offset = Vector2.new(offset, 0)
-    end)
-    table.insert(Library.AnimatedGradients, conn)
-end
-
-local function AddButtonGradient(btn, color)
-    if not btn then return end
-    local existing = btn:FindFirstChild("ButtonShine")
-    if existing then existing:Destroy() end
     
-    local shine = Create("Frame", {
-        Name = "ButtonShine",
-        Parent = btn,
-        Size = UDim2.new(0.4, 0, 1, 0),
-        Position = UDim2.new(-0.5, 0, 0, 0),
-        BackgroundColor3 = color or Color3.fromRGB(255, 255, 255),
-        BackgroundTransparency = 0.75,
-        BorderSizePixel = 0,
-        ZIndex = (btn.ZIndex or 1) + 1
-    })
-    AddCorner(shine, 6)
-    local shineGrad = Instance.new("UIGradient")
-    shineGrad.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
-        ColorSequenceKeypoint.new(0.5, Color3.new(1, 1, 1)),
-        ColorSequenceKeypoint.new(1, Color3.new(1, 1, 1))
-    }
-    shineGrad.Transparency = NumberSequence.new{
-        NumberSequenceKeypoint.new(0, 1),
-        NumberSequenceKeypoint.new(0.5, 0.4),
-        NumberSequenceKeypoint.new(1, 1)
-    }
-    shineGrad.Parent = shine
-    
+    -- Animação da borda brilhante
     task.spawn(function()
-        while shine.Parent do
-            shine.Position = UDim2.new(-0.5, 0, 0, 0)
-            local tw = TS:Create(shine, TweenInfo.new(2.5, Enum.EasingStyle.Linear), {Position = UDim2.new(1.2, 0, 0, 0)})
+        while glowStroke.Parent do
+            local tw = TS:Create(gradient, TweenInfo.new(2, Enum.EasingStyle.Linear), {Offset = Vector2.new(2, 0)})
             tw:Play()
             tw.Completed:Wait()
-            if not shine.Parent then break end
-            task.wait(1.5)
+            if not glowStroke.Parent then break end
+            gradient.Offset = Vector2.new(-1, 0)
         end
     end)
-    table.insert(Library.ButtonGradients, shine)
-    return shine
+
+    return baseStroke
 end
 
 local function CreateRipple(btn, color)
@@ -1073,7 +1030,6 @@ function Library:KeySystem(Settings)
     })
     AddCorner(CheckBtn, 8)
     CreateRipple(CheckBtn, Color3.new(1, 1, 1))
-    AddButtonGradient(CheckBtn, Color3.new(1, 1, 1))
     
     local GetKeyBtn = Create("TextButton", {
         Parent = Content,
@@ -1090,7 +1046,6 @@ function Library:KeySystem(Settings)
     AddCorner(GetKeyBtn, 8)
     CreateRipple(GetKeyBtn, SelectedTheme.Accent)
     AddStroke(GetKeyBtn, SelectedTheme).Transparency = 0.7
-    AddButtonGradient(GetKeyBtn, SelectedTheme.Accent)
     
     local Status = Create("TextLabel", {
         Parent = Content,
@@ -2383,7 +2338,6 @@ function Library:CreateWindow(Settings)
                 })
                 AddCorner(Btn, 8)
                 AddStroke(Btn, SelectedTheme).Transparency = 0.7
-                AddButtonGradient(Btn, SelectedTheme.Accent)
 
                 local Lbl = Create("TextLabel", {
                     Parent = Btn,
@@ -2429,7 +2383,6 @@ function Library:CreateWindow(Settings)
                 })
                 AddCorner(Btn, 8)
                 AddStroke(Btn, SelectedTheme).Transparency = 0.7
-                AddButtonGradient(Btn, SelectedTheme.Accent)
 
                 local Lbl = Create("TextLabel", {
                     Parent = Btn,
@@ -2536,7 +2489,6 @@ function Library:CreateWindow(Settings)
                 })
                 AddCorner(Frame, 8)
                 AddStroke(Frame, SelectedTheme).Transparency = 0.7
-                AddButtonGradient(Frame, SelectedTheme.Accent)
 
                 local Lbl = Create("TextLabel", {
                     Parent = Frame,
@@ -2690,7 +2642,6 @@ function Library:CreateWindow(Settings)
                 })
                 AddCorner(Frame, 8)
                 AddStroke(Frame, SelectedTheme).Transparency = 0.7
-                AddButtonGradient(Frame, SelectedTheme.Accent)
 
                 local Lbl = Create("TextLabel", {
                     Parent = Frame,
@@ -2800,7 +2751,6 @@ function Library:CreateWindow(Settings)
                 })
                 AddCorner(Drop, 8)
                 AddStroke(Drop, SelectedTheme).Transparency = 0.7
-                AddButtonGradient(Drop, SelectedTheme.Accent)
 
                 DefaultHover(Drop)
                 
@@ -2969,7 +2919,6 @@ function Library:CreateWindow(Settings)
                 })
                 AddCorner(Wrapper, 8)
                 AddStroke(Wrapper, SelectedTheme).Transparency = 0.7
-                AddButtonGradient(Wrapper, SelectedTheme.Accent)
 
                 local TriggerBtn = Create("TextButton", { Parent = Wrapper, Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1, Text = "", ZIndex = 8 })
                 
@@ -3246,7 +3195,6 @@ function Library:CreateWindow(Settings)
                 })
                 AddCorner(Frame, 8)
                 AddStroke(Frame, SelectedTheme).Transparency = 0.7
-                AddButtonGradient(Frame, SelectedTheme.Accent)
 
                 local TitleOffset = 12
                 local VP_Key = workspace.CurrentCamera.ViewportSize
@@ -3554,13 +3502,7 @@ function Library:CreateWindow(Settings)
                 })
                 
                 Create("UIListLayout", { Parent = BlockContent, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) })
-                Create("UIPadding", { 
-                    Parent = BlockContent, 
-                    PaddingTop = UDim.new(0, 2), 
-                    PaddingBottom = UDim.new(0, 10), 
-                    PaddingLeft = UDim.new(0, 8), 
-                    PaddingRight = UDim.new(0, 8) 
-                })
+                Create("UIPadding", { Parent = BlockContent, PaddingTop = UDim.new(0, 2), PaddingBottom = UDim2.new(0, 10), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) })
                 
                 return GetElements(BlockContent)
             end
