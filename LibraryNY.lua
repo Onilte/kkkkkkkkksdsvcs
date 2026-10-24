@@ -708,7 +708,7 @@ end
 
 local function AddCorner(instance, radius)
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, math.floor(radius * (Library.GlobalCornerValue / 10)))
+    corner.CornerRadius = UDim.new(0, math.floor(radius * (Library.GlobalCornerValue / 15)))
     corner.Parent = instance
     table.insert(Library.CornerObjects, {Corner = corner, BaseRadius = radius})
     return corner
