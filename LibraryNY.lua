@@ -45,8 +45,6 @@ Library.GradientObjects = {}
 Library.CornerObjects = {}
 Library.KeybindFlags = {}
 Library.IsLoadingConfig = false
-Library.AnimatedGradients = {}
-Library.ButtonGradients = {}
 
 Library.GlobalScale = 1.0
 Library.ScaleObj = nil
@@ -3490,6 +3488,7 @@ function Library:CreateWindow(Settings)
         return TabElements, Activate
     end
 
+    -- Criação da aba de Settings
     local SettingsTab, OpenSettingsFunc = Funcs:CreateTab("UI Settings", true, "rbxassetid://7059346373")
 
     local AppBlock = SettingsTab:CreateBlock({Name = "Appearance", Side = "Left"})
