@@ -45,7 +45,6 @@ Library.GradientObjects = {}
 Library.CornerObjects = {}
 Library.KeybindFlags = {}
 Library.IsLoadingConfig = false
-Library.AnimatedGradients = {}
 
 Library.GlobalScale = 1.0
 Library.ScaleObj = nil
@@ -732,49 +731,27 @@ local function CreateDropShadow(parent, blurRadius, opacity)
     return Shadow
 end
 
--- BORDA DUPLA COM BRILHO ANIMADO
+-- Borda Estática com Gradiente Azul (Sem travamentos)
 local function AddStroke(instance, theme)
-    -- Borda Base (Interna)
-    local baseStroke = Create("UIStroke", {
-        Color = Color3.fromRGB(25, 35, 60),
-        Thickness = 1,
-        Transparency = 0.2,
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Parent = instance
-    })
-
-    -- Borda Brilhante (Externa)
-    local glowStroke = Create("UIStroke", {
+    local stroke = Create("UIStroke", {
         Color = Color3.fromRGB(255, 255, 255),
-        Thickness = 2,
-        Transparency = 0.3,
+        Thickness = 1.5,
+        Transparency = 0.2,
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
         Parent = instance
     })
     
     local gradient = Create("UIGradient", {
         Color = ColorSequence.new{
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 150, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 40, 90)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 130, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 40, 90))
         },
         Rotation = 0,
-        Parent = glowStroke
+        Parent = stroke
     })
     table.insert(Library.GradientObjects, gradient)
-    
-    -- Animação da borda brilhante
-    task.spawn(function()
-        while glowStroke.Parent do
-            local tw = TS:Create(gradient, TweenInfo.new(2, Enum.EasingStyle.Linear), {Offset = Vector2.new(2, 0)})
-            tw:Play()
-            tw.Completed:Wait()
-            if not glowStroke.Parent then break end
-            gradient.Offset = Vector2.new(-1, 0)
-        end
-    end)
-
-    return baseStroke
+    return stroke
 end
 
 local function CreateRipple(btn, color)
