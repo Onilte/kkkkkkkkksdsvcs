@@ -733,7 +733,6 @@ local function CreateDropShadow(parent, blurRadius, opacity)
     return Shadow
 end
 
--- Criação de borda que aceita a animação correta via UIGradient
 local function AddStroke(instance, theme)
     local stroke = Create("UIStroke", {
         Color = Color3.fromRGB(35, 55, 110),
@@ -755,7 +754,6 @@ local function AddStroke(instance, theme)
     return stroke
 end
 
--- Animação de gradiente brilhando da esquerda pra direita
 local function AnimateGradient(gradient, speed, minOffset, maxOffset)
     if not gradient or not gradient.Parent then return end
     local offset = minOffset or -0.5
@@ -779,7 +777,6 @@ local function AnimateGradient(gradient, speed, minOffset, maxOffset)
     table.insert(Library.AnimatedGradients, conn)
 end
 
--- Gradiente fino para botões (brilho passando)
 local function AddButtonGradient(btn, color)
     if not btn then return end
     local existing = btn:FindFirstChild("ButtonShine")
@@ -3557,7 +3554,13 @@ function Library:CreateWindow(Settings)
                 })
                 
                 Create("UIListLayout", { Parent = BlockContent, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) })
-                Create("UIPadding", { Parent = BlockContent, PaddingTop = UDim2.new(0, 2), PaddingBottom = UDim2.new(0, 10), PaddingLeft = UDim2.new(0, 8), PaddingRight = UDim2.new(0, 8) })
+                Create("UIPadding", { 
+                    Parent = BlockContent, 
+                    PaddingTop = UDim.new(0, 2), 
+                    PaddingBottom = UDim.new(0, 10), 
+                    PaddingLeft = UDim.new(0, 8), 
+                    PaddingRight = UDim.new(0, 8) 
+                })
                 
                 return GetElements(BlockContent)
             end
