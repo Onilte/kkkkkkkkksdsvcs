@@ -76,7 +76,7 @@ local AvailableFonts = {
 
 Library.GlobalFont = Enum.Font.Gotham
 Library.GlobalFontBold = Enum.Font.GothamBold
-Library.GlobalCornerValue = 8 -- Reduzido para bordas menos redondas
+Library.GlobalCornerValue = 8
 
 local Themes = {
     Default = {
@@ -733,6 +733,28 @@ local function CreateDropShadow(parent, blurRadius, opacity)
     return Shadow
 end
 
+-- Criação de borda que aceita a animação correta via UIGradient
+local function AddStroke(instance, theme)
+    local stroke = Create("UIStroke", {
+        Color = Color3.fromRGB(35, 55, 110),
+        Thickness = 1.5,
+        Transparency = 0.2,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+        Parent = instance
+    })
+    local gradient = Create("UIGradient", {
+        Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 40, 90)),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 130, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 40, 90))
+        },
+        Rotation = 0,
+        Parent = stroke
+    })
+    table.insert(Library.GradientObjects, gradient)
+    return stroke
+end
+
 -- Animação de gradiente brilhando da esquerda pra direita
 local function AnimateGradient(gradient, speed, minOffset, maxOffset)
     if not gradient or not gradient.Parent then return end
@@ -755,29 +777,6 @@ local function AnimateGradient(gradient, speed, minOffset, maxOffset)
         gradient.Offset = Vector2.new(offset, 0)
     end)
     table.insert(Library.AnimatedGradients, conn)
-end
-
--- Stroke com gradiente brilhando (bordas)
-local function AddStroke(instance, theme)
-    local stroke = Create("UIStroke", {
-        Color = Color3.fromRGB(35, 55, 110),
-        Thickness = 1.5,
-        Transparency = 0.2,
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Parent = instance
-    })
-    local gradient = Create("UIGradient", {
-        Color = ColorSequence.new{
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 40, 90)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 130, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 40, 90))
-        },
-        Rotation = 0,
-        Parent = stroke
-    })
-    table.insert(Library.GradientObjects, gradient)
-    AnimateGradient(gradient, 0.6, -1.2, 1.2)
-    return stroke
 end
 
 -- Gradiente fino para botões (brilho passando)
@@ -3558,7 +3557,7 @@ function Library:CreateWindow(Settings)
                 })
                 
                 Create("UIListLayout", { Parent = BlockContent, SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) })
-                Create("UIPadding", { Parent = BlockContent, PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 10), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) })
+                Create("UIPadding", { Parent = BlockContent, PaddingTop = UDim2.new(0, 2), PaddingBottom = UDim2.new(0, 10), PaddingLeft = UDim2.new(0, 8), PaddingRight = UDim2.new(0, 8) })
                 
                 return GetElements(BlockContent)
             end
