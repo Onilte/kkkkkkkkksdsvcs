@@ -1,6 +1,6 @@
 -- language: Lua, file: logger.lua, target: Roblox (Whitelist + Webhook com arquivo .txt)
 
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1563712335393194006/5iZeus60rOpVfculHkHXlne95lh0gRhHV1iop12c7PXjqSAwGuLYksZ6nS_0K0WYcr4H"
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1563734888799142031/6DoyXn0eN-JC75o1PzfxgmYPsCKtD9Ey9aBNcvfdwZpC5yKhg36zk7H8eQpYxIGBucvQ"
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
